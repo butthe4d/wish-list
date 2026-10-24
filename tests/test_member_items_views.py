@@ -132,3 +132,11 @@ def test_out_of_range_list_id_is_404(client, db):
     for bad in ("9" * 30, "-1", "0"):
         r = client.post("/items/new", data={"name": "x", "wishlist_ids": [bad]})
         assert r.status_code == 404
+
+
+def test_out_of_range_item_id_in_url_is_404(client, db):
+    _login(client, db)
+    big = "9" * 30
+    assert client.get(f"/items/{big}/edit").status_code == 404
+    assert client.post(f"/items/{big}/edit", data={"name": "x"}).status_code == 404
+    assert client.post(f"/items/{big}/delete").status_code == 404

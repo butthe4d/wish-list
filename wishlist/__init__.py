@@ -7,6 +7,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .db import init_db
+from .urls import BoundedIntConverter
 
 
 def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
@@ -18,6 +19,7 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=365)
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_SECURE"] = config.base_url.startswith("https://")
+    app.url_map.converters["int"] = BoundedIntConverter
     init_db(app)
     CSRFProtect(app)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
