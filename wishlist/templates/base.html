@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="{{ get_locale() }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ _("Wishlist") }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='pico.classless.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="{{ url_for('static', filename='htmx.min.js') }}" defer></script>
+</head>
+<body hx-boost="true">
+  <header>
+    {% block nav %}
+    <nav>
+      <ul><li><strong><a href="/">{{ _("Wishlist") }}</a></strong></li></ul>
+    </nav>
+    {% endblock %}
+  </header>
+  <main>
+    {% for message in get_flashed_messages() %}
+      <p class="flash" role="status">{{ message }}</p>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <form method="post" action="/lang" hx-boost="false">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+      <button type="submit" name="lang" value="en" class="secondary outline">English</button>
+      <button type="submit" name="lang" value="pl" class="secondary outline">Polski</button>
+    </form>
+  </footer>
+</body>
+</html>

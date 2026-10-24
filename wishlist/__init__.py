@@ -2,6 +2,7 @@ import os
 from datetime import timedelta
 
 from flask import Flask
+from flask_wtf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
@@ -18,6 +19,7 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_SECURE"] = config.base_url.startswith("https://")
     init_db(app)
+    CSRFProtect(app)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     @app.after_request
@@ -30,6 +32,9 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
         return "ok"
 
     from . import auth, views
+    from .i18n import init_i18n
+
+    init_i18n(app)
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(views.bp)

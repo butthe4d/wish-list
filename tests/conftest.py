@@ -1,9 +1,24 @@
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 from wishlist import create_app
 from wishlist.config import Config
 from wishlist.db import get_session, upgrade_db
 from wishlist.models import User
+
+
+@pytest.fixture(scope="session", autouse=True)
+def compiled_translations():
+    root = Path(__file__).resolve().parent.parent
+    subprocess.run(
+        [sys.executable, "-m", "babel.messages.frontend", "compile", "-d", "wishlist/translations"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
 
 
 @pytest.fixture
@@ -19,7 +34,7 @@ def app_config(tmp_path):
 def app(app_config):
     upgrade_db(app_config.database_url)
     app = create_app(app_config)
-    app.config.update(TESTING=True)
+    app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
     return app
 
 
