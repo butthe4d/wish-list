@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -13,6 +14,9 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     app = Flask(__name__)
     app.config["WISHLIST"] = config
     app.config["SECRET_KEY"] = config.secret_key
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=365)
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = config.base_url.startswith("https://")
     init_db(app)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
@@ -24,5 +28,10 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     @app.get("/healthz")
     def healthz():
         return "ok"
+
+    from . import auth, views
+
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(views.bp)
 
     return app

@@ -40,3 +40,18 @@ def user(db):
     db.add(u)
     db.flush()
     return u
+
+
+def make_user(db, name, email, *, is_admin=False, language="en"):
+    from wishlist.keys import hash_key, new_key
+
+    key = new_key()
+    u = User(name=name, email=email, language=language, is_admin=is_admin, key_hash=hash_key(key))
+    db.add(u)
+    db.commit()
+    return u, key
+
+
+def login(client, key):
+    r = client.get(f"/u/{key}")
+    assert r.status_code == 302
