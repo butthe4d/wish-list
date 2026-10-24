@@ -196,8 +196,6 @@ msgstr "Witaj"
 #: wishlist/templates/welcome.html:4
 msgid "Please open the personal link you received to use this wishlist."
 msgstr "Otwórz otrzymany osobisty link, aby korzystać z tej listy życzeń."
-"Otwórz osobisty link, który otrzymałeś(-aś), aby korzystać z tej listy "
-"życzeń."
 
 #: wishlist/views/__init__.py:14
 msgid "Admin (placeholder)"

@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -30,3 +31,17 @@ def test_every_message_translated_to_polish(tmp_path):
         elif isinstance(have.string, tuple) and not all(have.string):
             problems.append(msg.id)
     assert not problems, f"untranslated or fuzzy in pl: {problems}"
+
+
+def test_polish_messages_have_no_glued_sentences():
+    with open(ROOT / "wishlist/translations/pl/LC_MESSAGES/messages.po", "rb") as f:
+        pl = read_po(f, locale="pl")
+    glued = re.compile(r"[.!?][A-ZĄĆĘŁŃÓŚŹŻa-ząćęłńóśźż]")
+    bad = []
+    for msg in pl:
+        if not msg.id:  # header
+            continue
+        strings = msg.string if isinstance(msg.string, tuple) else (msg.string,)
+        if any(glued.search(s or "") for s in strings):
+            bad.append(msg.id)
+    assert not bad, f"pl msgstr with glued sentences: {bad}"
