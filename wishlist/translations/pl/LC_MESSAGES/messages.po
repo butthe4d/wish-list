@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-24 18:40-0400\n"
+"POT-Creation-Date: 2026-10-24 18:44-0400\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pl\n"
@@ -35,13 +35,17 @@ msgstr "Link jest zbyt długi."
 msgid "Name is required."
 msgstr "Nazwa jest wymagana."
 
-#: wishlist/catalog.py:51 wishlist/catalog.py:132
+#: wishlist/catalog.py:51 wishlist/catalog.py:132 wishlist/reservations.py:27
 msgid "Name is too long."
 msgstr "Nazwa jest zbyt długa."
 
 #: wishlist/catalog.py:54 wishlist/catalog.py:135
 msgid "Description is too long."
 msgstr "Opis jest zbyt długi."
+
+#: wishlist/reservations.py:25
+msgid "Please enter your name."
+msgstr "Podaj swoje imię."
 
 #: wishlist/templates/base.html:6 wishlist/templates/base.html:15
 msgid "Wishlist"
@@ -94,6 +98,7 @@ msgid "Add item"
 msgstr "Dodaj pozycję"
 
 #: wishlist/templates/home.html:40 wishlist/templates/list_owner.html:15
+#: wishlist/templates/shared_list.html:14
 msgid "Store link"
 msgstr "Link do sklepu"
 
@@ -133,7 +138,7 @@ msgstr "Listy"
 msgid "Save"
 msgstr "Zapisz"
 
-#: wishlist/templates/item_form.html:32
+#: wishlist/templates/item_form.html:32 wishlist/templates/shared_list.html:31
 msgid "Cancel"
 msgstr "Anuluj"
 
@@ -157,7 +162,7 @@ msgstr "Pozycje"
 msgid "Remove from list"
 msgstr "Usuń z listy"
 
-#: wishlist/templates/list_owner.html:25
+#: wishlist/templates/list_owner.html:25 wishlist/templates/shared_list.html:40
 msgid "This list has no items yet."
 msgstr "Ta lista nie ma jeszcze żadnych pozycji."
 
@@ -189,6 +194,27 @@ msgstr "Edytuj listę"
 msgid "Delete list"
 msgstr "Usuń listę"
 
+#: wishlist/templates/shared_list.html:5
+#, python-format
+msgid "Wishlist of %(name)s"
+msgstr "Lista życzeń: %(name)s"
+
+#: wishlist/templates/shared_list.html:20
+msgid "Your name"
+msgstr "Twoje imię"
+
+#: wishlist/templates/shared_list.html:25
+msgid "Reserve"
+msgstr "Zarezerwuj"
+
+#: wishlist/templates/shared_list.html:28
+msgid "Reserved by you"
+msgstr "Zarezerwowane przez Ciebie"
+
+#: wishlist/templates/shared_list.html:34
+msgid "Reserved"
+msgstr "Zarezerwowane"
+
 #: wishlist/templates/welcome.html:3
 msgid "Welcome"
 msgstr "Witaj"
@@ -200,6 +226,10 @@ msgstr "Otwórz otrzymany osobisty link, aby korzystać z tej listy życzeń."
 #: wishlist/views/__init__.py:14
 msgid "Admin (placeholder)"
 msgstr "Administracja (tymczasowa)"
+
+#: wishlist/views/shared.py:107
+msgid "Sorry, someone just reserved that item."
+msgstr "Przepraszamy, ktoś właśnie zarezerwował ten prezent."
 
 #~ msgid "Home (placeholder)"
 #~ msgstr "Strona główna (tymczasowa)"

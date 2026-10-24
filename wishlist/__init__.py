@@ -34,7 +34,7 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
         return "ok"
 
     from . import auth, views
-    from .views import member
+    from .views import member, shared
     from .i18n import init_i18n
 
     init_i18n(app)
@@ -42,5 +42,6 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     app.register_blueprint(auth.bp)
     app.register_blueprint(views.bp)
     app.register_blueprint(member.bp)
+    app.register_blueprint(shared.bp)
 
     return app

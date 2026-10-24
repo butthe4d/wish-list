@@ -80,3 +80,13 @@ def login(client, key):
 @pytest.fixture
 def other_user(db):
     return make_user(db, "Basia", "basia@example.com")[0]
+
+
+@pytest.fixture
+def item_in_list(db, user):
+    from wishlist.catalog import add_items_to_wishlist, create_item, create_wishlist
+
+    wl = create_wishlist(db, user, name="Birthday", description=None)
+    item = create_item(db, user, name="Lamp", description=None, link=None)
+    add_items_to_wishlist(db, wl, [item.id])
+    return item, wl
