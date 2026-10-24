@@ -13,6 +13,8 @@ from .errors import ValidationError
 from .models import Item, User, Wishlist, utcnow
 
 NAME_MAX = 200
+WISHLIST_NAME_MAX = 100
+WISHLIST_DESCRIPTION_MAX = 500
 DESCRIPTION_MAX = 2000
 LINK_MAX = 2000
 # "scheme:" that is not "host:port"
@@ -120,3 +122,67 @@ def get_owned_item(s: Session, user: User, item_id: int) -> Item:
     if item is None or item.owner_id != user.id or item.deleted_at is not None:
         abort(404)
     return item
+
+
+def _clean_wishlist_fields(name: str, description: str | None):
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("name", _("Name is required."))
+    if len(name) > WISHLIST_NAME_MAX:
+        raise ValidationError("name", _("Name is too long."))
+    description = (description or "").strip() or None
+    if description is not None and len(description) > WISHLIST_DESCRIPTION_MAX:
+        raise ValidationError("description", _("Description is too long."))
+    return name, description
+
+
+def create_wishlist(s: Session, owner: User, *, name: str, description: str | None) -> Wishlist:
+    name, description = _clean_wishlist_fields(name, description)
+    wl = Wishlist(owner_id=owner.id, name=name, description=description)
+    s.add(wl)
+    s.commit()
+    return wl
+
+
+def update_wishlist(s: Session, wl: Wishlist, *, name: str, description: str | None) -> Wishlist:
+    name, description = _clean_wishlist_fields(name, description)
+    wl.name, wl.description = name, description
+    wl.updated_at = utcnow()
+    s.commit()
+    return wl
+
+
+def delete_wishlist(s: Session, wl: Wishlist) -> None:
+    s.delete(wl)
+    s.commit()
+
+
+def add_items_to_wishlist(s: Session, wl: Wishlist, item_ids: Iterable[int]) -> None:
+    ids = set(item_ids)
+    if not ids:
+        return
+    items = list(
+        s.scalars(
+            select(Item).where(
+                Item.id.in_(ids), Item.owner_id == wl.owner_id, Item.deleted_at.is_(None)
+            )
+        )
+    )
+    if len(items) != len(ids):
+        abort(404)
+    present = {i.id for i in wl.items}
+    wl.items.extend(i for i in items if i.id not in present)
+    s.commit()
+
+
+def remove_item_from_wishlist(s: Session, wl: Wishlist, item: Item) -> None:
+    if item in wl.items:
+        wl.items.remove(item)
+    s.commit()
+
+
+def get_owned_wishlist(s: Session, user: User, wishlist_id: int) -> Wishlist:
+    wl = s.get(Wishlist, wishlist_id)
+    if wl is None or wl.owner_id != user.id:
+        abort(404)
+    return wl

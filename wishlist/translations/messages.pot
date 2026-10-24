@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-24 18:33-0400\n"
+"POT-Creation-Date: 2026-10-24 18:40-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,27 +17,27 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: wishlist/catalog.py:28 wishlist/catalog.py:32
+#: wishlist/catalog.py:30 wishlist/catalog.py:34
 msgid "The link must start with http:// or https://."
 msgstr ""
 
-#: wishlist/catalog.py:38
+#: wishlist/catalog.py:40
 msgid "The link is not a valid address."
 msgstr ""
 
-#: wishlist/catalog.py:40
+#: wishlist/catalog.py:42
 msgid "The link is too long."
 msgstr ""
 
-#: wishlist/catalog.py:47
+#: wishlist/catalog.py:49 wishlist/catalog.py:130
 msgid "Name is required."
 msgstr ""
 
-#: wishlist/catalog.py:49
+#: wishlist/catalog.py:51 wishlist/catalog.py:132
 msgid "Name is too long."
 msgstr ""
 
-#: wishlist/catalog.py:52
+#: wishlist/catalog.py:54 wishlist/catalog.py:135
 msgid "Description is too long."
 msgstr ""
 
@@ -69,27 +69,40 @@ msgstr[1] ""
 msgid "You have no lists yet."
 msgstr ""
 
-#: wishlist/templates/home.html:20
-msgid "My items"
+#: wishlist/templates/home.html:20 wishlist/templates/list_owner.html:60
+msgid "List name"
 msgstr ""
 
-#: wishlist/templates/home.html:21
-msgid "Add item"
+#: wishlist/templates/home.html:24 wishlist/templates/item_form.html:12
+#: wishlist/templates/list_owner.html:64
+msgid "Description"
 msgstr ""
 
-#: wishlist/templates/home.html:27
-msgid "Store link"
-msgstr ""
-
-#: wishlist/templates/home.html:30
-msgid "Edit"
+#: wishlist/templates/home.html:28
+msgid "Create list"
 msgstr ""
 
 #: wishlist/templates/home.html:33
+msgid "My items"
+msgstr ""
+
+#: wishlist/templates/home.html:34
+msgid "Add item"
+msgstr ""
+
+#: wishlist/templates/home.html:40 wishlist/templates/list_owner.html:15
+msgid "Store link"
+msgstr ""
+
+#: wishlist/templates/home.html:43
+msgid "Edit"
+msgstr ""
+
+#: wishlist/templates/home.html:46
 msgid "Delete"
 msgstr ""
 
-#: wishlist/templates/home.html:39
+#: wishlist/templates/home.html:52
 msgid "You have no items yet."
 msgstr ""
 
@@ -105,10 +118,6 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: wishlist/templates/item_form.html:12
-msgid "Description"
-msgstr ""
-
 #: wishlist/templates/item_form.html:16
 msgid "Link"
 msgstr ""
@@ -117,7 +126,7 @@ msgstr ""
 msgid "Lists"
 msgstr ""
 
-#: wishlist/templates/item_form.html:31
+#: wishlist/templates/item_form.html:31 wishlist/templates/list_owner.html:68
 msgid "Save"
 msgstr ""
 
@@ -131,6 +140,50 @@ msgstr ""
 
 #: wishlist/templates/link_invalid.html:4
 msgid "This link is no longer valid. Ask your admin for a new one."
+msgstr ""
+
+#: wishlist/templates/list_owner.html:6
+msgid "Back"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:9
+msgid "Items"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:19
+msgid "Remove from list"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:25
+msgid "This list has no items yet."
+msgstr ""
+
+#: wishlist/templates/list_owner.html:31
+msgid "Add items"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:39
+msgid "Add selected"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:45
+msgid "Share"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:46
+msgid "Share link"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:50
+msgid "Copy link"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:56
+msgid "Edit list"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:72
+msgid "Delete list"
 msgstr ""
 
 #: wishlist/templates/welcome.html:3

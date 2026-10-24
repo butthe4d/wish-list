@@ -8,12 +8,25 @@
   {% if wishlists %}
   <ul>
     {% for w in wishlists %}
-    <li>{{ w.name }} ({{ ngettext("%(num)d item", "%(num)d items", w.items|selectattr("deleted_at", "none")|list|length) }})</li>
+    <li><a href="{{ url_for('member.list_view', wl_id=w.id) }}">{{ w.name }}</a> ({{ ngettext("%(num)d item", "%(num)d items", w.items|selectattr("deleted_at", "none")|list|length) }})</li>
     {% endfor %}
   </ul>
   {% else %}
   <p>{{ _("You have no lists yet.") }}</p>
   {% endif %}
+  {% if error %}<p role="alert">{{ error.message }}</p>{% endif %}
+  <form method="post" action="{{ url_for('member.list_create') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>{{ _("List name") }}
+      <input type="text" name="name" value="{{ form.get('name', '') }}" maxlength="100" required
+             {% if error and error.field == 'name' %}aria-invalid="true"{% endif %}>
+    </label>
+    <label>{{ _("Description") }}
+      <textarea name="description" maxlength="500"
+                {% if error and error.field == 'description' %}aria-invalid="true"{% endif %}>{{ form.get('description', '') }}</textarea>
+    </label>
+    <button type="submit">{{ _("Create list") }}</button>
+  </form>
 </section>
 
 <section>
