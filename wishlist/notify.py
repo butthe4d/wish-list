@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 from typing import Protocol
 
@@ -36,20 +37,24 @@ class SmtpMailer:
 
     def send(self, to: str, subject: str, body: str) -> None:
         c = self._c
-        msg = EmailMessage()
-        msg["From"] = c.smtp_from
-        msg["To"] = to
-        msg["Subject"] = subject
-        msg.set_content(body, charset="utf-8")
         try:
-            factory = smtplib.SMTP_SSL if c.smtp_security == "ssl" else smtplib.SMTP
-            with factory(c.smtp_host, c.smtp_port, timeout=TIMEOUT) as smtp:
+            msg = EmailMessage()
+            msg["From"] = c.smtp_from
+            msg["To"] = to
+            msg["Subject"] = subject
+            msg.set_content(body, charset="utf-8")
+            ctx = ssl.create_default_context()
+            if c.smtp_security == "ssl":
+                smtp_cm = smtplib.SMTP_SSL(c.smtp_host, c.smtp_port, timeout=TIMEOUT, context=ctx)
+            else:
+                smtp_cm = smtplib.SMTP(c.smtp_host, c.smtp_port, timeout=TIMEOUT)
+            with smtp_cm as smtp:
                 if c.smtp_security == "starttls":
-                    smtp.starttls()
+                    smtp.starttls(context=ctx)
                 if c.smtp_user:
                     smtp.login(c.smtp_user, c.smtp_password or "")
                 smtp.send_message(msg)
-        except (smtplib.SMTPException, OSError) as e:
+        except (smtplib.SMTPException, OSError, ValueError) as e:
             raise DeliveryError(f"email delivery failed: {e}") from e
 
 

@@ -1,4 +1,5 @@
 import smtplib
+import ssl
 
 import pytest
 
@@ -20,8 +21,10 @@ def _config(app_config, **kw):
 class FakeSmtp:
     instances: list = []
 
-    def __init__(self, host, port, timeout=None):
+    def __init__(self, host, port, timeout=None, context=None):
         self.host, self.port, self.timeout = host, port, timeout
+        self.init_context = context
+        self.tls_context = None
         self.calls = []
         self.message = None
         FakeSmtp.instances.append(self)
@@ -32,7 +35,8 @@ class FakeSmtp:
     def __exit__(self, *a):
         return False
 
-    def starttls(self, *a, **k):
+    def starttls(self, context=None):
+        self.tls_context = context
         self.calls.append("starttls")
 
     def login(self, user, password):
@@ -50,6 +54,7 @@ def test_smtp_mailer_starttls(monkeypatch, app_config):
     smtp = FakeSmtp.instances[0]
     assert (smtp.host, smtp.port, smtp.timeout) == ("smtp.example", 2525, 15)
     assert smtp.calls == ["starttls", ("login", "u", "p"), "send"]
+    assert smtp.tls_context.verify_mode == ssl.CERT_REQUIRED and smtp.tls_context.check_hostname
     assert smtp.message["To"] == "to@x.pl"
     assert smtp.message["From"] == "wish@example.com"
     assert smtp.message["Subject"] == "Hi żółw"
@@ -61,6 +66,8 @@ def test_smtp_mailer_ssl_and_none(monkeypatch, app_config):
     monkeypatch.setattr(smtplib, "SMTP_SSL", FakeSmtp)
     SmtpMailer(_config(app_config, smtp_security="ssl")).send("a@x.pl", "s", "b")
     assert "starttls" not in FakeSmtp.instances[0].calls
+    ctx = FakeSmtp.instances[0].init_context
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
     monkeypatch.setattr(smtplib, "SMTP", FakeSmtp)
     SmtpMailer(_config(app_config, smtp_security="none")).send("a@x.pl", "s", "b")
     assert FakeSmtp.instances[1].calls[-1] == "send" and "starttls" not in FakeSmtp.instances[1].calls
@@ -119,3 +126,9 @@ def test_share_sms_polish(app, db, user):
         user.language = "pl"
         pl = share_sms(user, wl, link)
     assert link in en and link in pl and en != pl
+
+
+def test_header_injection_becomes_delivery_error(monkeypatch, app_config):
+    monkeypatch.setattr(smtplib, "SMTP", FakeSmtp)
+    with pytest.raises(DeliveryError):
+        SmtpMailer(_config(app_config)).send("a@x.pl", "Hi\r\nBcc: x@y.z", "b")

@@ -7,7 +7,8 @@ from wishlist.catalog import create_wishlist
 from wishlist.db import upgrade_db
 from wishlist.errors import ValidationError
 from wishlist.keys import share_key
-from wishlist.models import ShareLog
+from wishlist.models import ShareLog, utcnow
+from datetime import timedelta
 from wishlist.notify import DISABLED
 from wishlist.sharing import normalize_phone, parse_emails
 
@@ -156,3 +157,40 @@ def test_email_form_hidden_and_route_404_when_disabled(app_config, sms):
     _, wl = _owner_list(client, db)
     assert 'name="emails"' not in client.get(f"/lists/{wl.id}").text
     assert client.post(f"/lists/{wl.id}/share/email", data={"emails": "a@x.pl"}).status_code == 404
+
+
+def test_share_email_newline_in_list_name_single_line_subject(client, db, mailer):
+    u, key = make_user(db, "Ania", "a@x.pl")
+    login(client, key)
+    wl = create_wishlist(db, u, name="Bday\nBcc: evil@x.pl", description=None)
+    r = client.post(f"/lists/{wl.id}/share/email", data={"emails": "b@y.com"})
+    assert r.status_code == 302
+    (to, subject, _), = mailer.sent
+    assert "\n" not in subject and "\r" not in subject
+
+
+def _fill_log(db, wl, channel, n, age=timedelta(hours=1)):
+    for i in range(n):
+        db.add(ShareLog(wishlist_id=wl.id, channel=channel, recipient=f"r{i}", sent_at=utcnow() - age))
+    db.commit()
+
+
+def test_sms_daily_limit(client, db, sms):
+    _, wl = _owner_list(client, db)
+    _fill_log(db, wl, "sms", 19)
+    _fill_log(db, wl, "sms", 5, age=timedelta(hours=25))  # old entries don't count
+    assert client.post(f"/lists/{wl.id}/share/sms", data={"phone": "+48600100200"}).status_code == 302
+    assert len(sms.sent) == 1
+    r = client.post(f"/lists/{wl.id}/share/sms", data={"phone": "+48600100201"}, follow_redirects=True)
+    assert "Daily sending limit reached, try again tomorrow." in r.text
+    assert len(sms.sent) == 1 and db.query(ShareLog).filter_by(channel="sms").count() == 25
+
+
+def test_email_batch_over_quota_refused(client, db, mailer):
+    _, wl = _owner_list(client, db)
+    _fill_log(db, wl, "email", 49)
+    r = client.post(f"/lists/{wl.id}/share/email", data={"emails": "a@y.com, b@y.com"}, follow_redirects=True)
+    assert "Daily sending limit reached" in r.text
+    assert mailer.sent == [] and db.query(ShareLog).count() == 49
+    client.post(f"/lists/{wl.id}/share/email", data={"emails": "a@y.com"})
+    assert len(mailer.sent) == 1

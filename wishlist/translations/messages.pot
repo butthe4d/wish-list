@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-24 18:48-0400\n"
+"POT-Creation-Date: 2026-10-24 18:50-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -41,11 +41,11 @@ msgstr ""
 msgid "Description is too long."
 msgstr ""
 
-#: wishlist/messages.py:11
+#: wishlist/messages.py:17
 msgid "You're invited to the wishlist"
 msgstr ""
 
-#: wishlist/messages.py:13
+#: wishlist/messages.py:19
 #, python-format
 msgid ""
 "Hi %(name)s,\n"
@@ -57,12 +57,12 @@ msgid ""
 "Keep the link private: anyone who has it can act as you."
 msgstr ""
 
-#: wishlist/messages.py:24
+#: wishlist/messages.py:31
 #, python-format
 msgid "%(name)s shared a wishlist with you: %(list)s"
 msgstr ""
 
-#: wishlist/messages.py:26
+#: wishlist/messages.py:36
 #, python-format
 msgid ""
 "Hi,\n"
@@ -72,17 +72,17 @@ msgid ""
 "%(link)s"
 msgstr ""
 
-#: wishlist/messages.py:38
+#: wishlist/messages.py:48
 #, python-format
 msgid "%(name)s shared the wishlist \"%(list)s\" with you: %(link)s"
 msgstr ""
 
-#: wishlist/messages.py:47
+#: wishlist/messages.py:57
 #, python-format
 msgid "A reserved item was changed: %(item)s"
 msgstr ""
 
-#: wishlist/messages.py:49
+#: wishlist/messages.py:59
 #, python-format
 msgid ""
 "Hi %(admin)s,\n"
@@ -96,21 +96,21 @@ msgstr ""
 msgid "Please enter your name."
 msgstr ""
 
-#: wishlist/sharing.py:42
+#: wishlist/sharing.py:44
 msgid "Enter at least one email address."
 msgstr ""
 
-#: wishlist/sharing.py:44
+#: wishlist/sharing.py:46
 #, python-format
 msgid "Enter at most %(n)d email addresses."
 msgstr ""
 
-#: wishlist/sharing.py:48
+#: wishlist/sharing.py:50
 #, python-format
 msgid "This is not a valid email address: %(address)s"
 msgstr ""
 
-#: wishlist/sharing.py:57
+#: wishlist/sharing.py:59
 msgid "Use international format, e.g. +48600100200."
 msgstr ""
 
@@ -333,21 +333,25 @@ msgstr ""
 msgid "Admin (placeholder)"
 msgstr ""
 
-#: wishlist/views/member.py:228 wishlist/views/member.py:251
+#: wishlist/views/member.py:228 wishlist/views/member.py:253
+msgid "Daily sending limit reached, try again tomorrow."
+msgstr ""
+
+#: wishlist/views/member.py:232 wishlist/views/member.py:257
 #, python-format
 msgid "Sent to %(recipients)s."
 msgstr ""
 
-#: wishlist/views/member.py:230
+#: wishlist/views/member.py:234
 #, python-format
 msgid "Couldn't send to %(recipients)s."
 msgstr ""
 
-#: wishlist/views/member.py:249
+#: wishlist/views/member.py:255
 msgid "Couldn't send the text message."
 msgstr ""
 
-#: wishlist/views/member.py:261
+#: wishlist/views/member.py:267
 msgid "New share link created. The old link no longer works."
 msgstr ""
 

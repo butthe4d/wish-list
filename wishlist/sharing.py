@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import timedelta
 
 from flask import current_app
 from flask_babel import gettext as _
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .errors import ValidationError
 from .keys import parse_share_key, share_key, share_link, verify_share_key
 from .messages import share_email, share_sms
-from .models import ShareLog, User, Wishlist
+from .models import ShareLog, User, Wishlist, utcnow
 from .notify import DeliveryError, Mailer, SmsSender
 
 log = logging.getLogger(__name__)
@@ -68,9 +70,31 @@ def wishlist_share_link(wl: Wishlist) -> str:
     return share_link(cfg.base_url, share_key(cfg.secret_key, wl.id, wl.share_version))
 
 
+MAX_EMAILS_PER_DAY = 50
+MAX_SMS_PER_DAY = 20
+
+
+class RateLimited(Exception):
+    pass
+
+
+def _sent_last_day(s: Session, sharer: User, channel: str) -> int:
+    return s.scalar(
+        select(func.count(ShareLog.id))
+        .join(Wishlist, Wishlist.id == ShareLog.wishlist_id)
+        .where(
+            Wishlist.owner_id == sharer.id,
+            ShareLog.channel == channel,
+            ShareLog.sent_at > utcnow() - timedelta(hours=24),
+        )
+    )
+
+
 def share_by_email(
     s: Session, wl: Wishlist, sharer: User, recipients: list[str], mailer: Mailer
 ) -> list[str]:
+    if _sent_last_day(s, sharer, "email") + len(recipients) > MAX_EMAILS_PER_DAY:
+        raise RateLimited()
     link = wishlist_share_link(wl)
     subject, body = share_email(sharer, wl, link)
     failed = []
@@ -87,6 +111,8 @@ def share_by_email(
 
 
 def share_by_sms(s: Session, wl: Wishlist, sharer: User, phone: str, sms: SmsSender) -> None:
+    if _sent_last_day(s, sharer, "sms") >= MAX_SMS_PER_DAY:
+        raise RateLimited()
     sms.send(phone, share_sms(sharer, wl, wishlist_share_link(wl)))
     _log_share(s, wl, "sms", phone)
     s.commit()

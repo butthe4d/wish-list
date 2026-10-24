@@ -222,7 +222,11 @@ def share_email(wl_id):
     except ValidationError as e:
         flash(e.message)
         return redirect(url_for("member.list_view", wl_id=wl.id))
-    failed = sharing.share_by_email(s, wl, user, recipients, mailer)
+    try:
+        failed = sharing.share_by_email(s, wl, user, recipients, mailer)
+    except sharing.RateLimited:
+        flash(_("Daily sending limit reached, try again tomorrow."))
+        return redirect(url_for("member.list_view", wl_id=wl.id))
     sent = [r for r in recipients if r not in failed]
     if sent:
         flash(_("Sent to %(recipients)s.", recipients=", ".join(sent)))
@@ -245,6 +249,8 @@ def share_sms(wl_id):
         sharing.share_by_sms(s, wl, user, phone, sms)
     except ValidationError as e:
         flash(e.message)
+    except sharing.RateLimited:
+        flash(_("Daily sending limit reached, try again tomorrow."))
     except DeliveryError:
         flash(_("Couldn't send the text message."))
     else:
