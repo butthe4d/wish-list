@@ -6,7 +6,9 @@ import pytest
 
 from wishlist import create_app
 from wishlist.config import Config
-from wishlist.db import get_session, upgrade_db
+from sqlalchemy.orm import sessionmaker
+
+from wishlist.db import upgrade_db
 from wishlist.models import User
 
 
@@ -45,8 +47,11 @@ def client(app):
 
 @pytest.fixture
 def db(app):
-    with app.app_context():
-        yield get_session()
+    """A session of its own, like a separate process: requests use their own scoped session,
+    so a domain function that forgets to commit is caught by the tests."""
+    session = sessionmaker(bind=app.extensions["wishlist_engine"])()
+    yield session
+    session.close()
 
 
 @pytest.fixture

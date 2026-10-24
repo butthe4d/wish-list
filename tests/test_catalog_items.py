@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy.orm import sessionmaker
 from werkzeug.exceptions import NotFound
 
 from wishlist.catalog import (
@@ -128,3 +129,29 @@ def test_get_owned_item(db, user, other_user):
     delete_item(db, item)
     with pytest.raises(NotFound):
         get_owned_item(db, user, item.id)
+
+
+@pytest.fixture
+def fresh(db):
+    """A new session on the same database: sees only what was committed."""
+    s = sessionmaker(bind=db.get_bind())()
+    yield s
+    s.close()
+
+
+def test_mutators_persist(db, fresh, user):
+    user_id = user.id
+    db.commit()
+    item = create_item(db, user, name="Book", description=None, link=None)
+    assert fresh.get(Item, item.id).name == "Book"
+    update_item(db, item, name="Novel", description=None, link=None)
+    assert fresh.get(Item, item.id).name == "Novel"
+    item_id = item.id
+    delete_item(db, item)
+    assert fresh.get(Item, item_id) is None
+
+    kept = create_item(db, user, name="Kept", description=None, link=None)
+    _reserve(db, kept)
+    delete_item(db, kept)
+    assert fresh.get(Item, kept.id).deleted_at is not None
+    assert user_id == kept.owner_id

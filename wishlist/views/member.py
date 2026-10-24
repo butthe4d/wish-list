@@ -12,11 +12,17 @@ from ..models import Item
 bp = Blueprint("member", __name__)
 
 
+_SQLITE_MAX_INT = 2**63 - 1
+
+
 def _form_wishlist_ids() -> list[int]:
     try:
-        return [int(v) for v in request.form.getlist("wishlist_ids")]
+        ids = [int(v) for v in request.form.getlist("wishlist_ids")]
     except ValueError:
         abort(404)
+    if any(not 0 < i <= _SQLITE_MAX_INT for i in ids):
+        abort(404)
+    return ids
 
 
 def _render_form(user, item, form, error=None, status=200):

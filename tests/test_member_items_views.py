@@ -31,7 +31,6 @@ def test_form_shows_checkboxes_only_with_lists(client, db):
     assert 'type="checkbox"' not in client.get("/items/new").text
     db.add(Wishlist(owner_id=u.id, name="Birthday"))
     db.commit()
-    db.expire_all()  # the test and the request share one session
     assert 'type="checkbox"' in client.get("/items/new").text
 
 
@@ -126,3 +125,10 @@ def test_language_switcher_next_is_root_on_post_error(client, db):
     assert 'name="next" value="/"' in r.text
     r = client.get("/items/new")
     assert 'name="next" value="/items/new"' in r.text
+
+
+def test_out_of_range_list_id_is_404(client, db):
+    _login(client, db)
+    for bad in ("9" * 30, "-1", "0"):
+        r = client.post("/items/new", data={"name": "x", "wishlist_ids": [bad]})
+        assert r.status_code == 404
