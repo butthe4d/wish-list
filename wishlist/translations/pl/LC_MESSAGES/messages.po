@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-24 18:50-0400\n"
+"POT-Creation-Date: 2026-10-24 18:54-0400\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pl\n"
@@ -31,7 +31,7 @@ msgstr "Link nie jest poprawnym adresem."
 msgid "The link is too long."
 msgstr "Link jest zbyt długi."
 
-#: wishlist/catalog.py:49 wishlist/catalog.py:130
+#: wishlist/catalog.py:49 wishlist/catalog.py:130 wishlist/members.py:28
 msgid "Name is required."
 msgstr "Nazwa jest wymagana."
 
@@ -42,6 +42,34 @@ msgstr "Nazwa jest zbyt długa."
 #: wishlist/catalog.py:54 wishlist/catalog.py:135
 msgid "Description is too long."
 msgstr "Opis jest zbyt długi."
+
+#: wishlist/members.py:30
+msgid "Name must be at most 100 characters."
+msgstr "Nazwa może mieć najwyżej 100 znaków."
+
+#: wishlist/members.py:32
+msgid "Name must not contain control characters."
+msgstr "Nazwa nie może zawierać znaków sterujących."
+
+#: wishlist/members.py:35
+msgid "Enter a valid email address."
+msgstr "Podaj prawidłowy adres e-mail."
+
+#: wishlist/members.py:37
+msgid "Choose a supported language."
+msgstr "Wybierz obsługiwany język."
+
+#: wishlist/members.py:42 wishlist/members.py:51
+msgid "A member with this email already exists."
+msgstr "Członek z tym adresem e-mail już istnieje."
+
+#: wishlist/members.py:72
+msgid "There must be at least one admin."
+msgstr "Musi pozostać co najmniej jeden administrator."
+
+#: wishlist/members.py:80
+msgid "You can't delete yourself."
+msgstr "Nie możesz usunąć samego siebie."
 
 #: wishlist/messages.py:17
 msgid "You're invited to the wishlist"
@@ -138,6 +166,12 @@ msgstr "Użyj formatu międzynarodowego, np. +48600100200."
 msgid "Wishlist"
 msgstr "Lista życzeń"
 
+#: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
+#: wishlist/templates/admin/index.html:17
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:17
+msgid "Admin"
+msgstr "Administrator"
+
 #: wishlist/templates/home.html:2
 msgid "My wishlist"
 msgstr "Moja lista życzeń"
@@ -189,11 +223,11 @@ msgstr "Dodaj pozycję"
 msgid "Store link"
 msgstr "Link do sklepu"
 
-#: wishlist/templates/home.html:43
+#: wishlist/templates/admin/index.html:28 wishlist/templates/home.html:43
 msgid "Edit"
 msgstr "Edytuj"
 
-#: wishlist/templates/home.html:46
+#: wishlist/templates/admin/index.html:40 wishlist/templates/home.html:46
 msgid "Delete"
 msgstr "Usuń"
 
@@ -209,6 +243,8 @@ msgstr "Edytuj pozycję"
 msgid "New item"
 msgstr "Nowa pozycja"
 
+#: wishlist/templates/admin/index.html:17
+#: wishlist/templates/admin/member_form.html:8
 #: wishlist/templates/item_form.html:8
 msgid "Name"
 msgstr "Nazwa"
@@ -221,10 +257,12 @@ msgstr "Link"
 msgid "Lists"
 msgstr "Listy"
 
+#: wishlist/templates/admin/member_form.html:28
 #: wishlist/templates/item_form.html:31 wishlist/templates/list_owner.html:99
 msgid "Save"
 msgstr "Zapisz"
 
+#: wishlist/templates/admin/member_form.html:29
 #: wishlist/templates/item_form.html:32 wishlist/templates/shared_list.html:31
 msgid "Cancel"
 msgstr "Anuluj"
@@ -350,9 +388,102 @@ msgstr "Witaj"
 msgid "Please open the personal link you received to use this wishlist."
 msgstr "Otwórz otrzymany osobisty link, aby korzystać z tej listy życzeń."
 
-#: wishlist/views/__init__.py:14
-msgid "Admin (placeholder)"
-msgstr "Administracja (tymczasowa)"
+#: wishlist/templates/admin/index.html:7
+msgid "Warnings"
+msgstr "Ostrzeżenia"
+
+#: wishlist/templates/admin/index.html:8
+msgid "No warnings."
+msgstr "Brak ostrzeżeń."
+
+#: wishlist/templates/admin/index.html:12
+msgid "Members"
+msgstr "Członkowie"
+
+#: wishlist/templates/admin/index.html:13
+msgid "Add member"
+msgstr "Dodaj członka"
+
+#: wishlist/templates/admin/index.html:17
+#: wishlist/templates/admin/member_form.html:12
+msgid "Email"
+msgstr "E-mail"
+
+#: wishlist/templates/admin/index.html:17
+#: wishlist/templates/admin/member_form.html:16
+msgid "Language"
+msgstr "Język"
+
+#: wishlist/templates/admin/index.html:26
+msgid "Yes"
+msgstr "Tak"
+
+#: wishlist/templates/admin/index.html:26
+msgid "No"
+msgstr "Nie"
+
+#: wishlist/templates/admin/index.html:31
+msgid "Change key and send new link"
+msgstr "Zmień klucz i wyślij nowy link"
+
+#: wishlist/templates/admin/index.html:38
+msgid "Also delete their items and lists"
+msgstr "Usuń także ich pozycje i listy"
+
+#: wishlist/templates/admin/link_once.html:2
+#: wishlist/templates/admin/link_once.html:12
+msgid "Personal link"
+msgstr "Link osobisty"
+
+#: wishlist/templates/admin/link_once.html:4
+#, python-format
+msgid "Personal link for %(name)s"
+msgstr "Link osobisty dla: %(name)s"
+
+#: wishlist/templates/admin/link_once.html:6
+#, python-format
+msgid "The link was emailed to %(email)s."
+msgstr "Link wysłano e-mailem na adres %(email)s."
+
+#: wishlist/templates/admin/link_once.html:8
+msgid "Couldn't send the email — copy the link and give it to them yourself."
+msgstr "Nie udało się wysłać e-maila — skopiuj link i przekaż go osobiście."
+
+#: wishlist/templates/admin/link_once.html:10
+msgid "Email isn't configured — copy the link and give it to them yourself."
+msgstr "E-mail nie jest skonfigurowany — skopiuj link i przekaż go osobiście."
+
+#: wishlist/templates/admin/link_once.html:15
+msgid "This link won't be shown again. Anyone who has it can act as this member."
+msgstr ""
+"Ten link nie zostanie pokazany ponownie. Każdy, kto go ma, może działać "
+"jako ten członek."
+
+#: wishlist/templates/admin/link_once.html:16
+msgid "Back to admin"
+msgstr "Wróć do panelu administratora"
+
+#: wishlist/templates/admin/member_form.html:2
+#: wishlist/templates/admin/member_form.html:4
+msgid "Edit member"
+msgstr "Edytuj członka"
+
+#: wishlist/templates/admin/member_form.html:2
+#: wishlist/templates/admin/member_form.html:4
+msgid "New member"
+msgstr "Nowy członek"
+
+#: wishlist/views/admin.py:87
+msgid "Saved."
+msgstr "Zapisano."
+
+#: wishlist/views/admin.py:101
+msgid "Tick the confirmation box to delete a member."
+msgstr "Zaznacz pole potwierdzenia, aby usunąć członka."
+
+#: wishlist/views/admin.py:108
+msgid "Member deleted."
+msgstr "Członek został usunięty."
 
 #: wishlist/views/member.py:228 wishlist/views/member.py:253
 msgid "Daily sending limit reached, try again tomorrow."
@@ -382,4 +513,7 @@ msgstr "Przepraszamy, ktoś właśnie zarezerwował ten prezent."
 
 #~ msgid "Home (placeholder)"
 #~ msgstr "Strona główna (tymczasowa)"
+
+#~ msgid "Admin (placeholder)"
+#~ msgstr "Administracja (tymczasowa)"
 

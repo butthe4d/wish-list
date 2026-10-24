@@ -104,3 +104,11 @@ def item_in_list(db, user):
     item = create_item(db, user, name="Lamp", description=None, link=None)
     add_items_to_wishlist(db, wl, [item.id])
     return item, wl
+
+
+@pytest.fixture
+def admin_client(app, db):
+    _, key = make_user(db, "Maciej", "maciej@example.com", is_admin=True)
+    c = app.test_client()
+    login(c, key)
+    return c

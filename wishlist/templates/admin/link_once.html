@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Personal link") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Personal link for %(name)s", name=member.name) }}</h1>
+{% if emailed %}
+<p>{{ _("The link was emailed to %(email)s.", email=member.email) }}</p>
+{% elif has_mailer %}
+<p role="alert">{{ _("Couldn't send the email — copy the link and give it to them yourself.") }}</p>
+{% else %}
+<p>{{ _("Email isn't configured — copy the link and give it to them yourself.") }}</p>
+{% endif %}
+<label>{{ _("Personal link") }}
+  <input type="text" readonly value="{{ link }}" onfocus="this.select()">
+</label>
+<p role="alert">{{ _("This link won't be shown again. Anyone who has it can act as this member.") }}</p>
+<p><a href="{{ url_for('admin.index') }}">{{ _("Back to admin") }}</a></p>
+{% endblock %}

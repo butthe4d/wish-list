@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Admin") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Admin") }}</h1>
+
+<section id="warnings">
+  <h2>{{ _("Warnings") }}</h2>
+  {% for w in warnings %}{{ w }}{% else %}<p>{{ _("No warnings.") }}</p>{% endfor %}
+</section>
+
+<section>
+  <h2>{{ _("Members") }}</h2>
+  <p><a href="{{ url_for('admin.member_new') }}" role="button">{{ _("Add member") }}</a></p>
+  <table>
+    <thead>
+      <tr>
+        <th>{{ _("Name") }}</th><th>{{ _("Email") }}</th><th>{{ _("Language") }}</th><th>{{ _("Admin") }}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in members %}
+      <tr>
+        <td>{{ m.name }}</td>
+        <td>{{ m.email }}</td>
+        <td>{{ m.language }}</td>
+        <td>{{ _("Yes") if m.is_admin else _("No") }}</td>
+        <td>
+          <a href="{{ url_for('admin.member_edit', uid=m.id) }}">{{ _("Edit") }}</a>
+          <form method="post" action="{{ url_for('admin.member_rotate_key', uid=m.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="secondary outline">{{ _("Change key and send new link") }}</button>
+          </form>
+          {% if m.id != me.id %}
+          <form method="post" action="{{ url_for('admin.member_delete', uid=m.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label>
+              <input type="checkbox" name="confirm" value="yes" required>
+              {{ _("Also delete their items and lists") }}
+            </label>
+            <button type="submit" class="secondary outline">{{ _("Delete") }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

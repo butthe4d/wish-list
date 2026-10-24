@@ -33,7 +33,7 @@ def regenerate_share_key(s: Session, wl: Wishlist) -> None:
     s.commit()
 
 
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _PHONE_RE = re.compile(r"^\+\d{8,15}$")
 MAX_EMAILS = 10
 
@@ -44,7 +44,7 @@ def parse_emails(text: str) -> list[str]:
         raise ValidationError("emails", _("Enter at least one email address."))
     if len(found) > MAX_EMAILS:
         raise ValidationError("emails", _("Enter at most %(n)d email addresses.", n=MAX_EMAILS))
-    bad = [e for e in found if not _EMAIL_RE.match(e)]
+    bad = [e for e in found if not EMAIL_RE.match(e)]
     if bad:
         raise ValidationError(
             "emails", _("This is not a valid email address: %(address)s", address=bad[0])

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-24 18:50-0400\n"
+"POT-Creation-Date: 2026-10-24 18:54-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -29,7 +29,7 @@ msgstr ""
 msgid "The link is too long."
 msgstr ""
 
-#: wishlist/catalog.py:49 wishlist/catalog.py:130
+#: wishlist/catalog.py:49 wishlist/catalog.py:130 wishlist/members.py:28
 msgid "Name is required."
 msgstr ""
 
@@ -39,6 +39,34 @@ msgstr ""
 
 #: wishlist/catalog.py:54 wishlist/catalog.py:135
 msgid "Description is too long."
+msgstr ""
+
+#: wishlist/members.py:30
+msgid "Name must be at most 100 characters."
+msgstr ""
+
+#: wishlist/members.py:32
+msgid "Name must not contain control characters."
+msgstr ""
+
+#: wishlist/members.py:35
+msgid "Enter a valid email address."
+msgstr ""
+
+#: wishlist/members.py:37
+msgid "Choose a supported language."
+msgstr ""
+
+#: wishlist/members.py:42 wishlist/members.py:51
+msgid "A member with this email already exists."
+msgstr ""
+
+#: wishlist/members.py:72
+msgid "There must be at least one admin."
+msgstr ""
+
+#: wishlist/members.py:80
+msgid "You can't delete yourself."
 msgstr ""
 
 #: wishlist/messages.py:17
@@ -118,6 +146,12 @@ msgstr ""
 msgid "Wishlist"
 msgstr ""
 
+#: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
+#: wishlist/templates/admin/index.html:17
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:17
+msgid "Admin"
+msgstr ""
+
 #: wishlist/templates/home.html:2
 msgid "My wishlist"
 msgstr ""
@@ -168,11 +202,11 @@ msgstr ""
 msgid "Store link"
 msgstr ""
 
-#: wishlist/templates/home.html:43
+#: wishlist/templates/admin/index.html:28 wishlist/templates/home.html:43
 msgid "Edit"
 msgstr ""
 
-#: wishlist/templates/home.html:46
+#: wishlist/templates/admin/index.html:40 wishlist/templates/home.html:46
 msgid "Delete"
 msgstr ""
 
@@ -188,6 +222,8 @@ msgstr ""
 msgid "New item"
 msgstr ""
 
+#: wishlist/templates/admin/index.html:17
+#: wishlist/templates/admin/member_form.html:8
 #: wishlist/templates/item_form.html:8
 msgid "Name"
 msgstr ""
@@ -200,10 +236,12 @@ msgstr ""
 msgid "Lists"
 msgstr ""
 
+#: wishlist/templates/admin/member_form.html:28
 #: wishlist/templates/item_form.html:31 wishlist/templates/list_owner.html:99
 msgid "Save"
 msgstr ""
 
+#: wishlist/templates/admin/member_form.html:29
 #: wishlist/templates/item_form.html:32 wishlist/templates/shared_list.html:31
 msgid "Cancel"
 msgstr ""
@@ -329,8 +367,99 @@ msgstr ""
 msgid "Please open the personal link you received to use this wishlist."
 msgstr ""
 
-#: wishlist/views/__init__.py:14
-msgid "Admin (placeholder)"
+#: wishlist/templates/admin/index.html:7
+msgid "Warnings"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:8
+msgid "No warnings."
+msgstr ""
+
+#: wishlist/templates/admin/index.html:12
+msgid "Members"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:13
+msgid "Add member"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:17
+#: wishlist/templates/admin/member_form.html:12
+msgid "Email"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:17
+#: wishlist/templates/admin/member_form.html:16
+msgid "Language"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:26
+msgid "Yes"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:26
+msgid "No"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:31
+msgid "Change key and send new link"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:38
+msgid "Also delete their items and lists"
+msgstr ""
+
+#: wishlist/templates/admin/link_once.html:2
+#: wishlist/templates/admin/link_once.html:12
+msgid "Personal link"
+msgstr ""
+
+#: wishlist/templates/admin/link_once.html:4
+#, python-format
+msgid "Personal link for %(name)s"
+msgstr ""
+
+#: wishlist/templates/admin/link_once.html:6
+#, python-format
+msgid "The link was emailed to %(email)s."
+msgstr ""
+
+#: wishlist/templates/admin/link_once.html:8
+msgid "Couldn't send the email — copy the link and give it to them yourself."
+msgstr ""
+
+#: wishlist/templates/admin/link_once.html:10
+msgid "Email isn't configured — copy the link and give it to them yourself."
+msgstr ""
+
+#: wishlist/templates/admin/link_once.html:15
+msgid "This link won't be shown again. Anyone who has it can act as this member."
+msgstr ""
+
+#: wishlist/templates/admin/link_once.html:16
+msgid "Back to admin"
+msgstr ""
+
+#: wishlist/templates/admin/member_form.html:2
+#: wishlist/templates/admin/member_form.html:4
+msgid "Edit member"
+msgstr ""
+
+#: wishlist/templates/admin/member_form.html:2
+#: wishlist/templates/admin/member_form.html:4
+msgid "New member"
+msgstr ""
+
+#: wishlist/views/admin.py:87
+msgid "Saved."
+msgstr ""
+
+#: wishlist/views/admin.py:101
+msgid "Tick the confirmation box to delete a member."
+msgstr ""
+
+#: wishlist/views/admin.py:108
+msgid "Member deleted."
 msgstr ""
 
 #: wishlist/views/member.py:228 wishlist/views/member.py:253

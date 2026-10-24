@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Edit member") if member else _("New member") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Edit member") if member else _("New member") }}</h1>
+{% if error %}<p role="alert">{{ error.message }}</p>{% endif %}
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>{{ _("Name") }}
+    <input type="text" name="name" value="{{ form.get('name', '') }}" maxlength="100" required
+           {% if error and error.field == 'name' %}aria-invalid="true"{% endif %}>
+  </label>
+  <label>{{ _("Email") }}
+    <input type="email" name="email" value="{{ form.get('email', '') }}" maxlength="254" required
+           {% if error and error.field == 'email' %}aria-invalid="true"{% endif %}>
+  </label>
+  <label>{{ _("Language") }}
+    <select name="language">
+      {% for code, label in languages %}
+      <option value="{{ code }}" {% if form.get('language') == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    <input type="checkbox" name="is_admin" {% if form.get('is_admin') %}checked{% endif %}
+           {% if error and error.field == 'is_admin' %}aria-invalid="true"{% endif %}>
+    {{ _("Admin") }}
+  </label>
+  <button type="submit">{{ _("Save") }}</button>
+  <a href="{{ url_for('admin.index') }}">{{ _("Cancel") }}</a>
+</form>
+{% endblock %}
