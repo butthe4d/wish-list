@@ -4,6 +4,7 @@ from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
+from .db import init_db
 
 
 def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
@@ -12,6 +13,7 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     app = Flask(__name__)
     app.config["WISHLIST"] = config
     app.config["SECRET_KEY"] = config.secret_key
+    init_db(app)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     @app.after_request
