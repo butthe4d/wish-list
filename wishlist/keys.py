@@ -28,7 +28,8 @@ def parse_share_key(key: str) -> int | None:
 
 
 def verify_share_key(secret: str, key: str, wishlist_id: int, version: int) -> bool:
-    return hmac.compare_digest(key, share_key(secret, wishlist_id, version))
+    # compare bytes: str args raise TypeError on non-ASCII input from the URL
+    return hmac.compare_digest(key.encode(), share_key(secret, wishlist_id, version).encode())
 
 
 def personal_link(base_url: str, key: str) -> str:

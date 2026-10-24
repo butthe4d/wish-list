@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2026-10-24 18:23:50.326473
+Create Date: 2026-10-24 18:27:58.851950
 """
 from alembic import op
 import sqlalchemy as sa
@@ -25,9 +25,10 @@ def upgrade() -> None:
     sa.Column('key_hash', sa.String(length=64), nullable=False),
     sa.Column('key_version', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('email'),
-    sa.UniqueConstraint('key_hash')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_user')),
+    sa.UniqueConstraint('email', name=op.f('uq_user_email')),
+    sa.UniqueConstraint('key_hash', name=op.f('uq_user_key_hash')),
+    sqlite_autoincrement=True
     )
     op.create_table('item',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -38,8 +39,8 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['owner_id'], ['user.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['owner_id'], ['user.id'], name=op.f('fk_item_owner_id_user'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_item'))
     )
     op.create_table('wishlist',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -49,8 +50,9 @@ def upgrade() -> None:
     sa.Column('share_version', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
-    sa.ForeignKeyConstraint(['owner_id'], ['user.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['owner_id'], ['user.id'], name=op.f('fk_wishlist_owner_id_user'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_wishlist')),
+    sqlite_autoincrement=True
     )
     op.create_table('reservation',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -61,10 +63,10 @@ def upgrade() -> None:
     sa.Column('via_wishlist_name', sa.String(length=100), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('warning_dismissed_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['item_id'], ['item.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['via_wishlist_id'], ['wishlist.id'], ondelete='SET NULL'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('item_id')
+    sa.ForeignKeyConstraint(['item_id'], ['item.id'], name=op.f('fk_reservation_item_id_item'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['via_wishlist_id'], ['wishlist.id'], name=op.f('fk_reservation_via_wishlist_id_wishlist'), ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_reservation')),
+    sa.UniqueConstraint('item_id', name=op.f('uq_reservation_item_id'))
     )
     op.create_table('share_log',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -72,15 +74,15 @@ def upgrade() -> None:
     sa.Column('channel', sa.String(length=10), nullable=False),
     sa.Column('recipient', sa.String(length=254), nullable=False),
     sa.Column('sent_at', sa.DateTime(), nullable=False),
-    sa.ForeignKeyConstraint(['wishlist_id'], ['wishlist.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['wishlist_id'], ['wishlist.id'], name=op.f('fk_share_log_wishlist_id_wishlist'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_share_log'))
     )
     op.create_table('wishlist_items',
     sa.Column('wishlist_id', sa.Integer(), nullable=False),
     sa.Column('item_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['item_id'], ['item.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['wishlist_id'], ['wishlist.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('wishlist_id', 'item_id')
+    sa.ForeignKeyConstraint(['item_id'], ['item.id'], name=op.f('fk_wishlist_items_item_id_item'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['wishlist_id'], ['wishlist.id'], name=op.f('fk_wishlist_items_wishlist_id_wishlist'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('wishlist_id', 'item_id', name=op.f('pk_wishlist_items'))
     )
     # ### end Alembic commands ###
 

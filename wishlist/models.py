@@ -22,6 +22,8 @@ wishlist_items = Table(
 
 class User(Base):
     __tablename__ = "user"
+    # never reuse ids: sessions and share links reference them
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
@@ -63,6 +65,8 @@ class Item(Base):
 
 class Wishlist(Base):
     __tablename__ = "wishlist"
+    # never reuse ids: sessions and share links reference them
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"))

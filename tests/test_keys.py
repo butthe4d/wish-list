@@ -27,3 +27,7 @@ def test_new_key_and_hash():
 def test_links():
     assert personal_link("https://w.example", "abc") == "https://w.example/u/abc"
     assert share_link("https://w.example", "abc") == "https://w.example/s/abc"
+
+
+def test_verify_share_key_non_ascii_is_false():
+    assert verify_share_key("s", "1.é", 1, 1) is False

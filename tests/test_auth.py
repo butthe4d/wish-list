@@ -44,3 +44,14 @@ def test_session_cookie_settings(client, db):
     r = client.get(f"/u/{key}")
     cookie = r.headers["Set-Cookie"]
     assert "Secure" in cookie and "SameSite=Lax" in cookie and "Expires=" in cookie
+
+
+def test_deleted_user_id_is_not_reused(client, db):
+    old, key = make_user(db, "Ania", "a@x.pl")
+    old_id = old.id
+    login(client, key)
+    db.delete(old)
+    db.commit()
+    new, _ = make_user(db, "Basia", "b@x.pl")
+    assert new.id != old_id
+    assert client.get("/").status_code == 401

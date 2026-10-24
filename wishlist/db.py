@@ -6,14 +6,23 @@ from alembic import command
 from alembic.config import Config as AlembicConfig
 from flask import Flask, current_app
 from flask.globals import app_ctx
-from sqlalchemy import create_engine, event
+from sqlalchemy import MetaData, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, scoped_session, sessionmaker
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
 
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 def _scope() -> int:
