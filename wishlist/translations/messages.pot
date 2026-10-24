@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-24 18:30-0400\n"
+"POT-Creation-Date: 2026-10-24 18:33-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,8 +17,112 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
+#: wishlist/catalog.py:28 wishlist/catalog.py:32
+msgid "The link must start with http:// or https://."
+msgstr ""
+
+#: wishlist/catalog.py:38
+msgid "The link is not a valid address."
+msgstr ""
+
+#: wishlist/catalog.py:40
+msgid "The link is too long."
+msgstr ""
+
+#: wishlist/catalog.py:47
+msgid "Name is required."
+msgstr ""
+
+#: wishlist/catalog.py:49
+msgid "Name is too long."
+msgstr ""
+
+#: wishlist/catalog.py:52
+msgid "Description is too long."
+msgstr ""
+
 #: wishlist/templates/base.html:6 wishlist/templates/base.html:15
 msgid "Wishlist"
+msgstr ""
+
+#: wishlist/templates/home.html:2
+msgid "My wishlist"
+msgstr ""
+
+#: wishlist/templates/home.html:4
+#, python-format
+msgid "Hello, %(name)s"
+msgstr ""
+
+#: wishlist/templates/home.html:7
+msgid "My lists"
+msgstr ""
+
+#: wishlist/templates/home.html:11
+#, python-format
+msgid "%(num)d item"
+msgid_plural "%(num)d items"
+msgstr[0] ""
+msgstr[1] ""
+
+#: wishlist/templates/home.html:15
+msgid "You have no lists yet."
+msgstr ""
+
+#: wishlist/templates/home.html:20
+msgid "My items"
+msgstr ""
+
+#: wishlist/templates/home.html:21
+msgid "Add item"
+msgstr ""
+
+#: wishlist/templates/home.html:27
+msgid "Store link"
+msgstr ""
+
+#: wishlist/templates/home.html:30
+msgid "Edit"
+msgstr ""
+
+#: wishlist/templates/home.html:33
+msgid "Delete"
+msgstr ""
+
+#: wishlist/templates/home.html:39
+msgid "You have no items yet."
+msgstr ""
+
+#: wishlist/templates/item_form.html:2 wishlist/templates/item_form.html:4
+msgid "Edit item"
+msgstr ""
+
+#: wishlist/templates/item_form.html:2 wishlist/templates/item_form.html:4
+msgid "New item"
+msgstr ""
+
+#: wishlist/templates/item_form.html:8
+msgid "Name"
+msgstr ""
+
+#: wishlist/templates/item_form.html:12
+msgid "Description"
+msgstr ""
+
+#: wishlist/templates/item_form.html:16
+msgid "Link"
+msgstr ""
+
+#: wishlist/templates/item_form.html:22
+msgid "Lists"
+msgstr ""
+
+#: wishlist/templates/item_form.html:31
+msgid "Save"
+msgstr ""
+
+#: wishlist/templates/item_form.html:32
+msgid "Cancel"
 msgstr ""
 
 #: wishlist/templates/link_invalid.html:3
@@ -38,10 +142,6 @@ msgid "Please open the personal link you received to use this wishlist."
 msgstr ""
 
 #: wishlist/views/__init__.py:14
-msgid "Home (placeholder)"
-msgstr ""
-
-#: wishlist/views/__init__.py:20
 msgid "Admin (placeholder)"
 msgstr ""
 

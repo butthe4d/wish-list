@@ -49,4 +49,4 @@ def personal_link(key):
     session.permanent = True
     session["uid"] = user.id
     session["kv"] = user.key_version
-    return redirect(url_for("placeholder.home"))
+    return redirect(url_for("member.home"))

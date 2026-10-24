@@ -25,7 +25,7 @@
   <footer>
     <form method="post" action="/lang" hx-boost="false">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+      <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') if request.method == 'GET' else '/' }}">
       <button type="submit" name="lang" value="en" class="secondary outline">English</button>
       <button type="submit" name="lang" value="pl" class="secondary outline">Polski</button>
     </form>

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ _("My wishlist") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Hello, %(name)s", name=user.name) }}</h1>
+
+<section>
+  <h2>{{ _("My lists") }}</h2>
+  {% if wishlists %}
+  <ul>
+    {% for w in wishlists %}
+    <li>{{ w.name }} ({{ ngettext("%(num)d item", "%(num)d items", w.items|selectattr("deleted_at", "none")|list|length) }})</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>{{ _("You have no lists yet.") }}</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>{{ _("My items") }}</h2>
+  <p><a href="{{ url_for('member.item_new') }}" role="button">{{ _("Add item") }}</a></p>
+  {% if items %}
+  <ul>
+    {% for item in items %}
+    <li>
+      <strong>{{ item.name }}</strong>
+      {% if item.link %}<a href="{{ item.link }}" rel="noopener noreferrer" target="_blank">{{ _("Store link") }}</a>{% endif %}
+      {% if item.description %}<br><small>{{ item.description }}</small>{% endif %}
+      <br>
+      <a href="{{ url_for('member.item_edit', item_id=item.id) }}">{{ _("Edit") }}</a>
+      <form method="post" action="{{ url_for('member.item_delete', item_id=item.id) }}" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="secondary outline">{{ _("Delete") }}</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>{{ _("You have no items yet.") }}</p>
+  {% endif %}
+</section>
+{% endblock %}

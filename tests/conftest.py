@@ -70,3 +70,8 @@ def make_user(db, name, email, *, is_admin=False, language="en"):
 def login(client, key):
     r = client.get(f"/u/{key}")
     assert r.status_code == 302
+
+
+@pytest.fixture
+def other_user(db):
+    return make_user(db, "Basia", "basia@example.com")[0]

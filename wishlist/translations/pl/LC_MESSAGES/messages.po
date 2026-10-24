@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-24 18:30-0400\n"
+"POT-Creation-Date: 2026-10-24 18:33-0400\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pl\n"
@@ -19,9 +19,114 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
+#: wishlist/catalog.py:28 wishlist/catalog.py:32
+msgid "The link must start with http:// or https://."
+msgstr "Link musi zaczynać się od http:// lub https://."
+
+#: wishlist/catalog.py:38
+msgid "The link is not a valid address."
+msgstr "Link nie jest poprawnym adresem."
+
+#: wishlist/catalog.py:40
+msgid "The link is too long."
+msgstr "Link jest zbyt długi."
+
+#: wishlist/catalog.py:47
+msgid "Name is required."
+msgstr "Nazwa jest wymagana."
+
+#: wishlist/catalog.py:49
+msgid "Name is too long."
+msgstr "Nazwa jest zbyt długa."
+
+#: wishlist/catalog.py:52
+msgid "Description is too long."
+msgstr "Opis jest zbyt długi."
+
 #: wishlist/templates/base.html:6 wishlist/templates/base.html:15
 msgid "Wishlist"
 msgstr "Lista życzeń"
+
+#: wishlist/templates/home.html:2
+msgid "My wishlist"
+msgstr "Moja lista życzeń"
+
+#: wishlist/templates/home.html:4
+#, python-format
+msgid "Hello, %(name)s"
+msgstr "Cześć, %(name)s"
+
+#: wishlist/templates/home.html:7
+msgid "My lists"
+msgstr "Moje listy"
+
+#: wishlist/templates/home.html:11
+#, python-format
+msgid "%(num)d item"
+msgid_plural "%(num)d items"
+msgstr[0] "%(num)d pozycja"
+msgstr[1] "%(num)d pozycje"
+msgstr[2] "%(num)d pozycji"
+
+#: wishlist/templates/home.html:15
+msgid "You have no lists yet."
+msgstr "Nie masz jeszcze żadnych list."
+
+#: wishlist/templates/home.html:20
+msgid "My items"
+msgstr "Moje pozycje"
+
+#: wishlist/templates/home.html:21
+msgid "Add item"
+msgstr "Dodaj pozycję"
+
+#: wishlist/templates/home.html:27
+msgid "Store link"
+msgstr "Link do sklepu"
+
+#: wishlist/templates/home.html:30
+msgid "Edit"
+msgstr "Edytuj"
+
+#: wishlist/templates/home.html:33
+msgid "Delete"
+msgstr "Usuń"
+
+#: wishlist/templates/home.html:39
+msgid "You have no items yet."
+msgstr "Nie masz jeszcze żadnych pozycji."
+
+#: wishlist/templates/item_form.html:2 wishlist/templates/item_form.html:4
+msgid "Edit item"
+msgstr "Edytuj pozycję"
+
+#: wishlist/templates/item_form.html:2 wishlist/templates/item_form.html:4
+msgid "New item"
+msgstr "Nowa pozycja"
+
+#: wishlist/templates/item_form.html:8
+msgid "Name"
+msgstr "Nazwa"
+
+#: wishlist/templates/item_form.html:12
+msgid "Description"
+msgstr "Opis"
+
+#: wishlist/templates/item_form.html:16
+msgid "Link"
+msgstr "Link"
+
+#: wishlist/templates/item_form.html:22
+msgid "Lists"
+msgstr "Listy"
+
+#: wishlist/templates/item_form.html:31
+msgid "Save"
+msgstr "Zapisz"
+
+#: wishlist/templates/item_form.html:32
+msgid "Cancel"
+msgstr "Anuluj"
 
 #: wishlist/templates/link_invalid.html:3
 msgid "Link not valid"
@@ -42,10 +147,9 @@ msgstr ""
 "życzeń."
 
 #: wishlist/views/__init__.py:14
-msgid "Home (placeholder)"
-msgstr "Strona główna (tymczasowa)"
-
-#: wishlist/views/__init__.py:20
 msgid "Admin (placeholder)"
 msgstr "Administracja (tymczasowa)"
+
+#~ msgid "Home (placeholder)"
+#~ msgstr "Strona główna (tymczasowa)"
 
