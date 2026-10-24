@@ -48,8 +48,39 @@
   </label>
   <button type="button" class="secondary"
           onclick="navigator.clipboard.writeText(document.getElementById('share-url').value)">{{ _("Copy link") }}</button>
-  {# Task 8: share by email/SMS and "new share link" go here #}
-  {% block share %}{% endblock %}
+  {% if can_email %}
+  <form method="post" action="{{ url_for('member.share_email', wl_id=wl.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>{{ _("Send by email") }}
+      <input type="text" name="emails" placeholder="{{ _('Email addresses, separated by commas') }}" required>
+    </label>
+    <button type="submit">{{ _("Send email") }}</button>
+  </form>
+  {% endif %}
+  {% if can_sms %}
+  <form method="post" action="{{ url_for('member.share_sms', wl_id=wl.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>{{ _("Send by text message") }}
+      <input type="tel" name="phone" placeholder="+48600100200" required>
+    </label>
+    <button type="submit">{{ _("Send text message") }}</button>
+  </form>
+  {% endif %}
+  <form method="post" action="{{ url_for('member.share_regenerate', wl_id=wl.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="secondary outline">{{ _("Create new share link (old one stops working)") }}</button>
+  </form>
+  {% if share_logs %}
+  <h3>{{ _("Shared so far") }}</h3>
+  <table>
+    <thead><tr><th>{{ _("Channel") }}</th><th>{{ _("Recipient") }}</th><th>{{ _("Sent") }}</th></tr></thead>
+    <tbody>
+      {% for entry in share_logs %}
+      <tr><td>{{ entry.channel }}</td><td>{{ entry.recipient }}</td><td>{{ entry.sent_at.strftime("%Y-%m-%d %H:%M") }} UTC</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 </section>
 
 <section>

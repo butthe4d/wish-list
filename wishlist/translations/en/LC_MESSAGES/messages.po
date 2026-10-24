@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-24 18:44-0400\n"
+"POT-Creation-Date: 2026-10-24 18:48-0400\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -42,8 +42,77 @@ msgstr ""
 msgid "Description is too long."
 msgstr ""
 
+#: wishlist/messages.py:11
+msgid "You're invited to the wishlist"
+msgstr ""
+
+#: wishlist/messages.py:13
+#, python-format
+msgid ""
+"Hi %(name)s,\n"
+"\n"
+"You have been invited to the household wishlist. Open this personal link "
+"to sign in:\n"
+"%(link)s\n"
+"\n"
+"Keep the link private: anyone who has it can act as you."
+msgstr ""
+
+#: wishlist/messages.py:24
+#, python-format
+msgid "%(name)s shared a wishlist with you: %(list)s"
+msgstr ""
+
+#: wishlist/messages.py:26
+#, python-format
+msgid ""
+"Hi,\n"
+"\n"
+"%(name)s shared the wishlist \"%(list)s\" with you. Open it here to see "
+"the items and reserve a gift:\n"
+"%(link)s"
+msgstr ""
+
+#: wishlist/messages.py:38
+#, python-format
+msgid "%(name)s shared the wishlist \"%(list)s\" with you: %(link)s"
+msgstr ""
+
+#: wishlist/messages.py:47
+#, python-format
+msgid "A reserved item was changed: %(item)s"
+msgstr ""
+
+#: wishlist/messages.py:49
+#, python-format
+msgid ""
+"Hi %(admin)s,\n"
+"\n"
+"%(owner)s changed or removed \"%(item)s\", which %(reserver)s had "
+"reserved via the list \"%(list)s\". You may want to let %(reserver)s "
+"know."
+msgstr ""
+
 #: wishlist/reservations.py:25
 msgid "Please enter your name."
+msgstr ""
+
+#: wishlist/sharing.py:42
+msgid "Enter at least one email address."
+msgstr ""
+
+#: wishlist/sharing.py:44
+#, python-format
+msgid "Enter at most %(n)d email addresses."
+msgstr ""
+
+#: wishlist/sharing.py:48
+#, python-format
+msgid "This is not a valid email address: %(address)s"
+msgstr ""
+
+#: wishlist/sharing.py:57
+msgid "Use international format, e.g. +48600100200."
 msgstr ""
 
 #: wishlist/templates/base.html:6 wishlist/templates/base.html:15
@@ -74,12 +143,12 @@ msgstr[1] ""
 msgid "You have no lists yet."
 msgstr ""
 
-#: wishlist/templates/home.html:20 wishlist/templates/list_owner.html:60
+#: wishlist/templates/home.html:20 wishlist/templates/list_owner.html:91
 msgid "List name"
 msgstr ""
 
 #: wishlist/templates/home.html:24 wishlist/templates/item_form.html:12
-#: wishlist/templates/list_owner.html:64
+#: wishlist/templates/list_owner.html:95
 msgid "Description"
 msgstr ""
 
@@ -132,7 +201,7 @@ msgstr ""
 msgid "Lists"
 msgstr ""
 
-#: wishlist/templates/item_form.html:31 wishlist/templates/list_owner.html:68
+#: wishlist/templates/item_form.html:31 wishlist/templates/list_owner.html:99
 msgid "Save"
 msgstr ""
 
@@ -184,11 +253,51 @@ msgstr ""
 msgid "Copy link"
 msgstr ""
 
-#: wishlist/templates/list_owner.html:56
+#: wishlist/templates/list_owner.html:54
+msgid "Send by email"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:55
+msgid "Email addresses, separated by commas"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:57
+msgid "Send email"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:63
+msgid "Send by text message"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:66
+msgid "Send text message"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:71
+msgid "Create new share link (old one stops working)"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:74
+msgid "Shared so far"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:76
+msgid "Channel"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:76
+msgid "Recipient"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:76
+msgid "Sent"
+msgstr ""
+
+#: wishlist/templates/list_owner.html:87
 msgid "Edit list"
 msgstr ""
 
-#: wishlist/templates/list_owner.html:72
+#: wishlist/templates/list_owner.html:103
 msgid "Delete list"
 msgstr ""
 
@@ -223,6 +332,24 @@ msgstr ""
 
 #: wishlist/views/__init__.py:14
 msgid "Admin (placeholder)"
+msgstr ""
+
+#: wishlist/views/member.py:228 wishlist/views/member.py:251
+#, python-format
+msgid "Sent to %(recipients)s."
+msgstr ""
+
+#: wishlist/views/member.py:230
+#, python-format
+msgid "Couldn't send to %(recipients)s."
+msgstr ""
+
+#: wishlist/views/member.py:249
+msgid "Couldn't send the text message."
+msgstr ""
+
+#: wishlist/views/member.py:261
+msgid "New share link created. The old link no longer works."
 msgstr ""
 
 #: wishlist/views/shared.py:107

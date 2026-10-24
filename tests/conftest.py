@@ -11,6 +11,8 @@ from sqlalchemy.orm import sessionmaker
 from wishlist.db import upgrade_db
 from wishlist.models import User
 
+from fakes import RecordingMailer, RecordingSms
+
 
 @pytest.fixture(scope="session", autouse=True)
 def compiled_translations():
@@ -33,9 +35,21 @@ def app_config(tmp_path):
 
 
 @pytest.fixture
-def app(app_config):
+def mailer():
+    return RecordingMailer()
+
+
+@pytest.fixture
+def sms():
+    return RecordingSms()
+
+
+@pytest.fixture
+def app(app_config, mailer, sms):
+    """Senders are injected recorders. To test a disabled channel, build an app with
+    create_app(app_config, sms=DISABLED) (see tests/test_share_send.py)."""
     upgrade_db(app_config.database_url)
-    app = create_app(app_config)
+    app = create_app(app_config, mailer=mailer, sms=sms)
     app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
     return app
 

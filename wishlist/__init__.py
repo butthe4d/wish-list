@@ -21,6 +21,10 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     app.config["SESSION_COOKIE_SECURE"] = config.base_url.startswith("https://")
     app.url_map.converters["int"] = BoundedIntConverter
     init_db(app)
+    from .notify import build_mailer, build_sms
+
+    app.extensions["mailer"] = build_mailer(config, mailer)
+    app.extensions["sms"] = build_sms(config, sms)
     CSRFProtect(app)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 

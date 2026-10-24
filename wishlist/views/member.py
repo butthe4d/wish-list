@@ -1,13 +1,13 @@
-from flask import Blueprint, abort, current_app, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_babel import gettext as _
 from sqlalchemy import select
 from werkzeug.datastructures import MultiDict
 
-from .. import catalog
+from .. import catalog, sharing
 from ..auth import current_user, member_required
 from ..db import get_session
 from ..errors import ValidationError
-from ..keys import share_key, share_link
+from ..notify import DeliveryError, get_mailer, get_sms
 from ..models import Item
 
 bp = Blueprint("member", __name__)
@@ -147,11 +147,11 @@ def _render_list(user, wl, error=None, form=None, status=200):
         )
         if i.id not in in_list
     ]
-    cfg = current_app.config["WISHLIST"]
-    link = share_link(cfg.base_url, share_key(cfg.secret_key, wl.id, wl.share_version))
     return (
         render_template(
-            "list_owner.html", wl=wl, items=live, available=available, share_url=link,
+            "list_owner.html", wl=wl, items=live, available=available, share_url=sharing.wishlist_share_link(wl),
+            share_logs=sorted(wl.share_logs, key=lambda l: (l.sent_at, l.id), reverse=True),
+            can_email=get_mailer() is not None, can_sms=get_sms() is not None,
             error=error, form=form or {},
         ),
         status,
@@ -205,4 +205,58 @@ def list_remove_item(wl_id, item_id):
     s = get_session()
     wl = catalog.get_owned_wishlist(s, user, wl_id)
     catalog.remove_item_from_wishlist(s, wl, catalog.get_owned_item(s, user, item_id))
+    return redirect(url_for("member.list_view", wl_id=wl.id))
+
+
+@bp.post("/lists/<int:wl_id>/share/email")
+@member_required
+def share_email(wl_id):
+    user = current_user()
+    s = get_session()
+    wl = catalog.get_owned_wishlist(s, user, wl_id)
+    mailer = get_mailer()
+    if mailer is None:
+        abort(404)
+    try:
+        recipients = sharing.parse_emails(request.form.get("emails", ""))
+    except ValidationError as e:
+        flash(e.message)
+        return redirect(url_for("member.list_view", wl_id=wl.id))
+    failed = sharing.share_by_email(s, wl, user, recipients, mailer)
+    sent = [r for r in recipients if r not in failed]
+    if sent:
+        flash(_("Sent to %(recipients)s.", recipients=", ".join(sent)))
+    if failed:
+        flash(_("Couldn't send to %(recipients)s.", recipients=", ".join(failed)))
+    return redirect(url_for("member.list_view", wl_id=wl.id))
+
+
+@bp.post("/lists/<int:wl_id>/share/sms")
+@member_required
+def share_sms(wl_id):
+    user = current_user()
+    s = get_session()
+    wl = catalog.get_owned_wishlist(s, user, wl_id)
+    sms = get_sms()
+    if sms is None:
+        abort(404)
+    try:
+        phone = sharing.normalize_phone(request.form.get("phone", ""))
+        sharing.share_by_sms(s, wl, user, phone, sms)
+    except ValidationError as e:
+        flash(e.message)
+    except DeliveryError:
+        flash(_("Couldn't send the text message."))
+    else:
+        flash(_("Sent to %(recipients)s.", recipients=phone))
+    return redirect(url_for("member.list_view", wl_id=wl.id))
+
+
+@bp.post("/lists/<int:wl_id>/share/regenerate")
+@member_required
+def share_regenerate(wl_id):
+    s = get_session()
+    wl = catalog.get_owned_wishlist(s, current_user(), wl_id)
+    sharing.regenerate_share_key(s, wl)
+    flash(_("New share link created. The old link no longer works."))
     return redirect(url_for("member.list_view", wl_id=wl.id))
