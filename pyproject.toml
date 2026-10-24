@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wishlist"
+version = "0.1.0"
+description = "Self-hosted household wishlist app"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "Flask>=3.1",
+    "SQLAlchemy>=2.0",
+    "alembic>=1.14",
+    "Flask-Babel>=4.0",
+    "Flask-WTF>=1.2",
+    "gunicorn>=23",
+    "gsmservice-gateway",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["wishlist*"]
+
+[tool.setuptools.package-data]
+wishlist = ["templates/**/*", "static/**/*", "translations/**/*", "migrations/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
