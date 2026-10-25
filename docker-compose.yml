@@ -1,0 +1,29 @@
+services:
+  wishlist:
+    image: ghcr.io/butthe4d/wish-list:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      # Required. Public URL of the app, used in every link the app creates.
+      BASE_URL: https://wish.example.com
+      # Required. Generate with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+      SECRET_KEY: change-me
+      # The first admin is created on first start; their personal link is printed in the container log.
+      ADMIN_EMAIL: you@example.com
+      ADMIN_NAME: You
+      DEFAULT_LANGUAGE: en   # en or pl
+
+      # Optional email (example: Gmail with an app password)
+      # SMTP_HOST: smtp.gmail.com
+      # SMTP_PORT: "587"
+      # SMTP_SECURITY: starttls   # starttls, ssl or none
+      # SMTP_USER: you@gmail.com
+      # SMTP_PASSWORD: your-16-char-app-password
+      # SMTP_FROM: you@gmail.com
+
+      # Optional SMS via gsmservice.pl
+      # GSMSERVICE_TOKEN: your-token
+      # GSMSERVICE_SENDER: Wishlist
