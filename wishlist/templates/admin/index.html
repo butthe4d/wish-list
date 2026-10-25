@@ -26,7 +26,7 @@
         <td>{{ _("Yes") if m.is_admin else _("No") }}</td>
         <td>
           <a href="{{ url_for('admin.member_edit', uid=m.id) }}">{{ _("Edit") }}</a>
-          <form method="post" action="{{ url_for('admin.member_rotate_key', uid=m.id) }}">
+          <form method="post" hx-boost="false" action="{{ url_for('admin.member_rotate_key', uid=m.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="secondary outline">{{ _("Change key and send new link") }}</button>
           </form>

@@ -129,3 +129,46 @@ def test_delete_requires_confirmation_and_blocks_self(admin_client, db):
 def test_unknown_member_404(admin_client):
     assert admin_client.get("/admin/members/999/edit").status_code == 404
     assert admin_client.post("/admin/members/999/rotate-key").status_code == 404
+
+
+def test_link_once_not_cached_by_htmx(admin_client, db):
+    r = _create(admin_client)
+    assert 'hx-history="false"' in r.text
+    assert 'hx-boost="false"' in admin_client.get("/admin/members/new").text
+    u, _ = make_user(db, "Ola2", "ola2@x.pl")
+    assert 'hx-boost="false"' in admin_client.get("/admin/").text
+    r = admin_client.post(f"/admin/members/{u.id}/rotate-key")
+    assert 'hx-history="false"' in r.text
+
+
+def _snapshot(db):
+    db.expire_all()
+    return sorted((u.id, u.key_hash, u.is_admin, u.email) for u in db.query(User))
+
+
+import pytest
+
+
+@pytest.mark.parametrize("who,status", [("member", 404), ("anon", 401)])
+@pytest.mark.parametrize("path", ["new", "{id}/edit", "{id}/delete", "{id}/rotate-key"])
+def test_non_admin_cannot_mutate(client, db, mailer, who, status, path):
+    target, _ = make_user(db, "Target", "t@x.pl")
+    _, mkey = make_user(db, "Mem", "m@x.pl")
+    if who == "member":
+        login(client, mkey)
+    before = _snapshot(db)
+    r = client.post(
+        "/admin/members/" + path.format(id=target.id),
+        data={"name": "X", "email": "x@x.pl", "language": "en", "is_admin": "on", "confirm": "yes"},
+    )
+    assert r.status_code == status
+    assert _snapshot(db) == before and mailer.sent == []
+
+
+def test_sole_admin_cannot_demote_self(admin_client, db):
+    admin = db.query(User).filter_by(is_admin=True).one()
+    r = admin_client.post(f"/admin/members/{admin.id}/edit",
+                          data={"name": "Maciej", "email": "maciej@example.com", "language": "en"})
+    assert r.status_code == 200 and 'role="alert"' in r.text
+    db.refresh(admin)
+    assert admin.is_admin
