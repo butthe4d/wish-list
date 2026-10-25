@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .errors import ValidationError
 from .models import Item, User, Wishlist, utcnow
 from .notify import get_mailer
-from .reservations import notify_orphan
+from .reservations import notify_orphan, orphan_state
 
 NAME_MAX = 200
 WISHLIST_NAME_MAX = 100
@@ -103,20 +103,22 @@ def update_item(
     wishlist_ids: Iterable[int] = (),
 ) -> Item:
     name, description, link = _clean_fields(name, description, link)
+    was = orphan_state(s, item)
     set_item_wishlists(s, item, wishlist_ids)
     item.name, item.description, item.link = name, description, link
     item.updated_at = utcnow()
     s.commit()
-    notify_orphan(s, item, get_mailer())
+    notify_orphan(s, item, get_mailer(), was_orphaned=was)
     return item
 
 
 def delete_item(s: Session, item: Item) -> None:
+    was = orphan_state(s, item)
     if item.reservation is not None:
         item.deleted_at = utcnow()
         item.wishlists = []
         s.commit()
-        notify_orphan(s, item, get_mailer())
+        notify_orphan(s, item, get_mailer(), was_orphaned=was)
     else:
         s.delete(item)
         s.commit()
@@ -159,10 +161,11 @@ def update_wishlist(s: Session, wl: Wishlist, *, name: str, description: str | N
 
 def delete_wishlist(s: Session, wl: Wishlist) -> None:
     items = list(wl.items)
+    before = {item.id: orphan_state(s, item) for item in items}
     s.delete(wl)
     s.commit()
     for item in items:
-        notify_orphan(s, item, get_mailer())
+        notify_orphan(s, item, get_mailer(), was_orphaned=before[item.id])
 
 
 def add_items_to_wishlist(s: Session, wl: Wishlist, item_ids: Iterable[int]) -> None:
@@ -184,10 +187,11 @@ def add_items_to_wishlist(s: Session, wl: Wishlist, item_ids: Iterable[int]) -> 
 
 
 def remove_item_from_wishlist(s: Session, wl: Wishlist, item: Item) -> None:
+    was = orphan_state(s, item)
     if item in wl.items:
         wl.items.remove(item)
     s.commit()
-    notify_orphan(s, item, get_mailer())
+    notify_orphan(s, item, get_mailer(), was_orphaned=was)
 
 
 def get_owned_wishlist(s: Session, user: User, wishlist_id: int) -> Wishlist:

@@ -84,10 +84,21 @@ def orphaned_reservations(s: Session, viewer: User, *, reveal_own: bool) -> list
     ]
 
 
-def notify_orphan(s: Session, item: Item, mailer: Mailer | None) -> None:
-    """Email every admin except the item's owner. Delivery errors are logged, never raised."""
+def orphan_state(s: Session, item: Item) -> bool:
+    """Whether the item has an orphaned reservation, judged on fresh database state
+    (sessions do not expire on commit, so loaded relationships may be stale)."""
+    s.refresh(item, ["deleted_at", "wishlists", "reservation"])
+    return item.reservation is not None and is_orphaned(item.reservation)
+
+
+def notify_orphan(s: Session, item: Item, mailer: Mailer | None, *, was_orphaned: bool) -> None:
+    """Email every admin except the item's owner when the item has just become orphaned
+    (was_orphaned is orphan_state taken before the change). Never emails for a dismissed
+    warning. Delivery errors are logged, never raised."""
+    if was_orphaned or not orphan_state(s, item) or mailer is None:
+        return
     r = item.reservation
-    if mailer is None or r is None or not is_orphaned(r):
+    if r.warning_dismissed_at is not None:
         return
     admins = s.scalars(select(User).where(User.is_admin.is_(True), User.id != item.owner_id))
     for admin in list(admins):

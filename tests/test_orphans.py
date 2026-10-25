@@ -13,7 +13,7 @@ from wishlist.catalog import (
     remove_item_from_wishlist,
     update_item,
 )
-from wishlist.models import Item, Reservation
+from wishlist.models import Item, Reservation, utcnow
 from wishlist.reservations import (
     cancel_by_admin,
     dismiss_warning,
@@ -41,6 +41,7 @@ def _reserved(db, owner, *, lists=1):
     for wl in wls:
         add_items_to_wishlist(db, wl, [item.id])
     reserve(db, item, wls[0], reserver_name="Mom", guest_token="t")
+    db.refresh(item)
     return item, wls
 
 
@@ -99,7 +100,7 @@ def test_delivery_error_is_logged_not_raised(db, member, admin, caplog):
     item, _ = _reserved(db, member)
     delete_item(db, item)
     caplog.set_level(logging.WARNING)
-    notify_orphan(db, item, FailingMailer())
+    notify_orphan(db, item, FailingMailer(), was_orphaned=False)
     assert "notification" in caplog.text
     assert "Mom" not in caplog.text
 
@@ -125,3 +126,35 @@ def test_dismiss_hides_warning(db, member, admin):
     delete_item(db, item)
     dismiss_warning(db, orphaned_reservations(db, admin, reveal_own=False)[0])
     assert orphaned_reservations(db, admin, reveal_own=False) == []
+
+
+def test_no_further_email_once_already_orphaned(db, member, admin, mailer):
+    item, (wl,) = _reserved(db, member)
+    remove_item_from_wishlist(db, wl, item)
+    assert len(mailer.sent) == 1
+    update_item(db, item, name="Lamp 2", description=None, link=None, wishlist_ids=[])
+    update_item(db, item, name="Lamp 3", description=None, link=None, wishlist_ids=[])
+    delete_item(db, item)
+    assert len(mailer.sent) == 1
+
+
+def test_removing_from_unrelated_list_sends_nothing(db, member, admin, mailer):
+    item, _ = _reserved(db, member)
+    other = create_wishlist(db, member, name="Other", description=None)
+    remove_item_from_wishlist(db, other, item)
+    assert mailer.sent == []
+
+
+def test_dismissed_warning_sends_no_email(db, member, admin, mailer):
+    item, (wl,) = _reserved(db, member)
+    item.reservation.warning_dismissed_at = utcnow()
+    db.commit()
+    delete_item(db, item)
+    assert mailer.sent == []
+
+
+def test_preloaded_wishlists_still_detect_deleted_list(db, member, admin, mailer):
+    item, (wl,) = _reserved(db, member)
+    assert [w.id for w in item.wishlists] == [wl.id]  # loaded; session does not expire on commit
+    delete_wishlist(db, wl)
+    assert len(mailer.sent) == 1

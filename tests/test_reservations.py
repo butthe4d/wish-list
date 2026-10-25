@@ -27,6 +27,7 @@ def test_invalid_name(db, item_in_list, name):
 def test_second_reservation_rejected(db, item_in_list):
     item, wl = item_in_list
     reserve(db, item, wl, reserver_name="Mom", guest_token="g1")
+    db.refresh(item)
     with pytest.raises(AlreadyReserved):
         reserve(db, item, wl, reserver_name="Dad", guest_token="g2")
     assert item.reservation.reserver_name == "Mom"
@@ -35,6 +36,7 @@ def test_second_reservation_rejected(db, item_in_list):
 def test_integrity_error_race_becomes_already_reserved(db, item_in_list):
     item, wl = item_in_list
     reserve(db, item, wl, reserver_name="Mom", guest_token="g1")
+    db.refresh(item)
     db.expire(item)
     # a stale view of the item that does not see the reservation yet
     from sqlalchemy.orm import sessionmaker
@@ -52,6 +54,7 @@ def test_state_for_guest(db, item_in_list):
     item, wl = item_in_list
     assert state_for_guest(item, "g1") == "available"
     reserve(db, item, wl, reserver_name="Mom", guest_token="g1")
+    db.refresh(item)
     assert state_for_guest(item, "g1") == "mine"
     assert state_for_guest(item, "g2") == "reserved"
     assert state_for_guest(item, None) == "reserved"
@@ -60,10 +63,12 @@ def test_state_for_guest(db, item_in_list):
 def test_cancel_only_by_same_guest(db, item_in_list):
     item, wl = item_in_list
     reserve(db, item, wl, reserver_name="Mom", guest_token="g1")
+    db.refresh(item)
     assert cancel_by_guest(db, item, "g2") is False
     assert db.query(Reservation).count() == 1
     assert cancel_by_guest(db, item, "g1") is True
     assert db.query(Reservation).count() == 0
+    db.refresh(item)
     assert cancel_by_guest(db, item, "g1") is False
 
 
@@ -74,6 +79,7 @@ def test_reservation_visible_in_every_list(db, user):
     add_items_to_wishlist(db, a, [item.id])
     add_items_to_wishlist(db, b, [item.id])
     reserve(db, item, a, reserver_name="Mom", guest_token="g1")
+    db.refresh(item)
     assert state_for_guest(item, "g2") == "reserved"
     assert state_for_guest(b.items[0], "g2") == "reserved"
     assert state_for_guest(b.items[0], "g1") == "mine"

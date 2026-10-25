@@ -63,7 +63,7 @@ def client(app):
 def db(app):
     """A session of its own, like a separate process: requests use their own scoped session,
     so a domain function that forgets to commit is caught by the tests."""
-    session = sessionmaker(bind=app.extensions["wishlist_engine"])()
+    session = sessionmaker(bind=app.extensions["wishlist_engine"], expire_on_commit=False)()
     yield session
     session.close()
 

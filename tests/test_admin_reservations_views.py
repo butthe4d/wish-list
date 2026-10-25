@@ -19,6 +19,7 @@ def _reserved(db, owner, name="Gift"):
     item = create_item(db, owner, name=name, description=None, link=None)
     add_items_to_wishlist(db, wl, [item.id])
     reserve(db, item, wl, reserver_name="Mom", guest_token="t")
+    db.refresh(item)
     return item, wl
 
 
