@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from .errors import ValidationError
 from .models import Item, User, Wishlist, utcnow
+from .notify import get_mailer
+from .reservations import notify_orphan
 
 NAME_MAX = 200
 WISHLIST_NAME_MAX = 100
@@ -105,6 +107,7 @@ def update_item(
     item.name, item.description, item.link = name, description, link
     item.updated_at = utcnow()
     s.commit()
+    notify_orphan(s, item, get_mailer())
     return item
 
 
@@ -112,9 +115,11 @@ def delete_item(s: Session, item: Item) -> None:
     if item.reservation is not None:
         item.deleted_at = utcnow()
         item.wishlists = []
+        s.commit()
+        notify_orphan(s, item, get_mailer())
     else:
         s.delete(item)
-    s.commit()
+        s.commit()
 
 
 def get_owned_item(s: Session, user: User, item_id: int) -> Item:
@@ -153,8 +158,11 @@ def update_wishlist(s: Session, wl: Wishlist, *, name: str, description: str | N
 
 
 def delete_wishlist(s: Session, wl: Wishlist) -> None:
+    items = list(wl.items)
     s.delete(wl)
     s.commit()
+    for item in items:
+        notify_orphan(s, item, get_mailer())
 
 
 def add_items_to_wishlist(s: Session, wl: Wishlist, item_ids: Iterable[int]) -> None:
@@ -179,6 +187,7 @@ def remove_item_from_wishlist(s: Session, wl: Wishlist, item: Item) -> None:
     if item in wl.items:
         wl.items.remove(item)
     s.commit()
+    notify_orphan(s, item, get_mailer())
 
 
 def get_owned_wishlist(s: Session, user: User, wishlist_id: int) -> Wishlist:

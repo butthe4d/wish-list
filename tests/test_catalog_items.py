@@ -13,6 +13,8 @@ from wishlist.catalog import (
 from wishlist.errors import ValidationError
 from wishlist.models import Item, Reservation, Wishlist
 
+pytestmark = pytest.mark.usefixtures("catalog_mailer")
+
 
 def _reserve(db, item):
     db.add(

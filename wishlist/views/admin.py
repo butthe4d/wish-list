@@ -1,14 +1,14 @@
 from flask import Blueprint, abort, current_app, flash, make_response, redirect, render_template, request, url_for
 from flask_babel import gettext as _
 
-from .. import members
+from .. import members, reservations
 from ..auth import admin_required, current_user
 from ..config import SUPPORTED_LANGUAGES
 from ..db import get_session
 from ..errors import ValidationError
 from ..i18n import LANGUAGE_NAMES
 from ..keys import personal_link
-from ..models import User
+from ..models import Reservation, User
 from ..notify import get_mailer
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -41,11 +41,75 @@ def _render_link_once(user, key):
     return response
 
 
+def _page(template, reveal_shown: bool, **ctx):
+    """Pages that show the admin's own reservation info must not be cached by the browser
+    or by htmx history."""
+    response = make_response(render_template(template, reveal=reveal_shown, **ctx))
+    if reveal_shown:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @bp.get("/")
 @admin_required
 def index():
-    users = get_session().query(User).order_by(User.name, User.id).all()
-    return render_template("admin/index.html", members=users, me=current_user(), warnings=[])
+    s = get_session()
+    me = current_user()
+    reveal = request.args.get("reveal") == "1"
+    users = s.query(User).order_by(User.name, User.id).all()
+    warnings = reservations.orphaned_reservations(s, me, reveal_own=reveal)
+    return _page(
+        "admin/index.html", reveal, members=users, me=me, warnings=warnings
+    )
+
+
+@bp.get("/members/<int:uid>")
+@admin_required
+def member_lists(uid):
+    member = _get_member(uid)
+    me = current_user()
+    own = member.id == me.id
+    reveal = request.args.get("reveal") == "1"
+    show_state = not own or reveal
+    return _page(
+        "admin/member_lists.html", own and reveal,
+        member=member, own=own, show_state=show_state,
+    )
+
+
+def _get_reservation(rid: int) -> Reservation:
+    r = get_session().get(Reservation, rid)
+    if r is None:
+        abort(404)
+    if r.item.owner_id == current_user().id and request.form.get("reveal") != "1":
+        abort(404)
+    return r
+
+
+def _back(reveal: bool):
+    uid = request.form.get("back_uid", type=int)
+    args = {"reveal": 1} if reveal else {}
+    if uid is not None:
+        return redirect(url_for("admin.member_lists", uid=uid, **args))
+    return redirect(url_for("admin.index", **args))
+
+
+@bp.post("/reservations/<int:rid>/cancel")
+@admin_required
+def reservation_cancel(rid):
+    r = _get_reservation(rid)
+    reservations.cancel_by_admin(get_session(), r)
+    flash(_("Reservation cancelled."))
+    return _back(request.form.get("reveal") == "1")
+
+
+@bp.post("/reservations/<int:rid>/dismiss")
+@admin_required
+def reservation_dismiss(rid):
+    r = _get_reservation(rid)
+    reservations.dismiss_warning(get_session(), r)
+    flash(_("Warning dismissed."))
+    return _back(request.form.get("reveal") == "1")
 
 
 @bp.route("/members/new", methods=["GET", "POST"])

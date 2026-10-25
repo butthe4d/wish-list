@@ -1,7 +1,10 @@
+import pytest
 from conftest import login, make_user
 
 from wishlist.catalog import create_item, delete_item
 from wishlist.models import Item, Reservation, Wishlist
+
+pytestmark = pytest.mark.usefixtures("catalog_mailer")
 
 
 def _login(client, db, name="Ania", email="a@x.pl"):

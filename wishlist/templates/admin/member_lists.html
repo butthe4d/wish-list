@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ member.name }}{% endblock %}
+{% block content %}
+<div {% if reveal %}hx-history="false"{% endif %}>
+<h1>{{ member.name }}</h1>
+<p><a href="{{ url_for('admin.index') }}">{{ _("Back") }}</a></p>
+
+{% if not show_state %}
+<p><a href="{{ url_for('admin.member_lists', uid=member.id, reveal=1) }}" hx-boost="false" role="button" class="secondary outline">{{ _("Show reservations") }}</a></p>
+{% endif %}
+
+{% for wl in member.wishlists %}
+<section>
+  <h2>{{ wl.name }}</h2>
+  {% if wl.items %}
+  <ul>
+    {% for item in wl.items %}
+    <li>
+      <strong>{{ item.name }}</strong>
+      {% if show_state and item.reservation %}
+      <br><small>{{ _("Reserved by %(name)s via %(list)s", name=item.reservation.reserver_name, list=item.reservation.via_wishlist_name) }}</small>
+      <form method="post" style="display:inline" action="{{ url_for('admin.reservation_cancel', rid=item.reservation.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="back_uid" value="{{ member.id }}">
+        {% if own %}<input type="hidden" name="reveal" value="1">{% endif %}
+        <button type="submit" class="secondary outline">{{ _("Cancel reservation") }}</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>{{ _("This list has no items yet.") }}</p>
+  {% endif %}
+</section>
+{% else %}
+<p>{{ _("No lists yet.") }}</p>
+{% endfor %}
+</div>
+{% endblock %}
