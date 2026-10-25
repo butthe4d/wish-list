@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-SUPPORTED_LANGUAGES: tuple[str, ...] = ("en", "pl")
+LANGUAGE_NAMES: dict[str, str] = {"en": "English", "pl": "Polski"}
+SUPPORTED_LANGUAGES: tuple[str, ...] = tuple(LANGUAGE_NAMES)
 SMTP_SECURITY_MODES = ("starttls", "ssl", "none")
 MIN_SECRET_KEY_LENGTH = 32
-PLACEHOLDER_SECRET_KEYS = ("change-me", "changeme", "secret", "dev")
 
 
 class ConfigError(Exception):
@@ -48,9 +48,9 @@ class Config:
             raise ConfigError("Missing required environment variables: " + ", ".join(missing))
 
         secret = get("SECRET_KEY")
-        if len(secret) < MIN_SECRET_KEY_LENGTH or secret.lower() in PLACEHOLDER_SECRET_KEYS:
+        if len(secret) < MIN_SECRET_KEY_LENGTH:
             raise ConfigError(
-                f"SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters and not a placeholder. "
+                f"SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters. "
                 'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))"'
             )
 

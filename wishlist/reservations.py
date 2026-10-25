@@ -109,6 +109,13 @@ def notify_orphan(s: Session, item: Item, mailer: Mailer | None, *, was_orphaned
             log.warning("orphan notification to admin %s failed: %s", admin.id, e)
 
 
+def reset_dismissal(item: Item) -> None:
+    """The item has a list again: a dismissed warning must not outlive the orphaning it
+    was dismissed for, or the next orphaning would pass unnoticed."""
+    if item.reservation is not None:
+        item.reservation.warning_dismissed_at = None
+
+
 def cancel_by_admin(s: Session, r: Reservation) -> None:
     item = r.item
     s.delete(r)

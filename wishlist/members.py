@@ -65,7 +65,7 @@ def _admin_count(s: Session) -> int:
 
 
 def update_member(
-    s: Session, user: User, *, name: str, email: str, language: str, is_admin: bool, acting_admin: User
+    s: Session, user: User, *, name: str, email: str, language: str, is_admin: bool
 ) -> User:
     name, email = _validate(s, name=name, email=email, language=language, exclude_id=user.id)
     if user.is_admin and not is_admin and _admin_count(s) <= 1:

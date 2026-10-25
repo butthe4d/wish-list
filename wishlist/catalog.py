@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from .errors import ValidationError
 from .models import Item, User, Wishlist, utcnow
 from .notify import get_mailer
+from . import reservations
 from .reservations import notify_orphan, orphan_state
 
 NAME_MAX = 200
@@ -69,6 +70,8 @@ def set_item_wishlists(s: Session, item: Item, wishlist_ids: Iterable[int]) -> N
         if len(lists) != len(ids):
             abort(404)
     item.wishlists = lists
+    if lists:
+        reservations.reset_dismissal(item)
 
 
 def create_item(
@@ -183,6 +186,8 @@ def add_items_to_wishlist(s: Session, wl: Wishlist, item_ids: Iterable[int]) -> 
         abort(404)
     present = {i.id for i in wl.items}
     wl.items.extend(i for i in items if i.id not in present)
+    for i in items:
+        reservations.reset_dismissal(i)
     s.commit()
 
 

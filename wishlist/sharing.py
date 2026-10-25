@@ -14,13 +14,14 @@ from .keys import parse_share_key, share_key, share_link, verify_share_key
 from .messages import share_email, share_sms
 from .models import ShareLog, User, Wishlist, utcnow
 from .notify import DeliveryError, Mailer, SmsSender
+from .urls import MAX_ID
 
 log = logging.getLogger(__name__)
 
 
 def open_share(s: Session, secret: str, key: str) -> Wishlist | None:
     wl_id = parse_share_key(key)
-    if wl_id is None or wl_id > 2**63 - 1:
+    if wl_id is None or wl_id > MAX_ID:
         return None
     wl = s.get(Wishlist, wl_id)
     if wl is None or not verify_share_key(secret, key, wl.id, wl.share_version):
@@ -61,8 +62,8 @@ def normalize_phone(text: str) -> str:
     return phone
 
 
-def _log_share(s: Session, wl: Wishlist, channel: str, recipient: str) -> None:
-    s.add(ShareLog(wishlist_id=wl.id, channel=channel, recipient=recipient))
+def _log_share(s: Session, wl: Wishlist, sharer: User, channel: str, recipient: str) -> None:
+    s.add(ShareLog(sharer_id=sharer.id, wishlist_id=wl.id, channel=channel, recipient=recipient))
 
 
 def wishlist_share_link(wl: Wishlist) -> str:
@@ -81,9 +82,8 @@ class RateLimited(Exception):
 def _sent_last_day(s: Session, sharer: User, channel: str) -> int:
     return s.scalar(
         select(func.count(ShareLog.id))
-        .join(Wishlist, Wishlist.id == ShareLog.wishlist_id)
         .where(
-            Wishlist.owner_id == sharer.id,
+            ShareLog.sharer_id == sharer.id,
             ShareLog.channel == channel,
             ShareLog.sent_at > utcnow() - timedelta(hours=24),
         )
@@ -105,7 +105,7 @@ def share_by_email(
             log.warning("share email to %s failed: %s", to, e)
             failed.append(to)
         else:
-            _log_share(s, wl, "email", to)
+            _log_share(s, wl, sharer, "email", to)
     s.commit()
     return failed
 
@@ -114,5 +114,5 @@ def share_by_sms(s: Session, wl: Wishlist, sharer: User, phone: str, sms: SmsSen
     if _sent_last_day(s, sharer, "sms") >= MAX_SMS_PER_DAY:
         raise RateLimited()
     sms.send(phone, share_sms(sharer, wl, wishlist_share_link(wl)))
-    _log_share(s, wl, "sms", phone)
+    _log_share(s, wl, sharer, "sms", phone)
     s.commit()

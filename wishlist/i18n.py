@@ -2,13 +2,12 @@ from flask import Blueprint, abort, current_app, make_response, redirect, reques
 from flask_babel import Babel, get_locale
 
 from .auth import current_user
-from .config import SUPPORTED_LANGUAGES
+from .config import LANGUAGE_NAMES, SUPPORTED_LANGUAGES
 from .db import get_session
 
 bp = Blueprint("i18n", __name__)
 babel = Babel()
 
-LANGUAGE_NAMES = {"en": "English", "pl": "Polski"}
 COOKIE_MAX_AGE = 365 * 24 * 3600
 
 
@@ -61,4 +60,6 @@ def init_i18n(app) -> None:
     app.config.setdefault("BABEL_DEFAULT_LOCALE", app.config["WISHLIST"].default_language)
     babel.init_app(app, locale_selector=select_locale)
     app.register_blueprint(bp)
-    app.context_processor(lambda: {"get_locale": lambda: str(get_locale())})
+    app.context_processor(
+        lambda: {"get_locale": lambda: str(get_locale()), "language_names": LANGUAGE_NAMES}
+    )

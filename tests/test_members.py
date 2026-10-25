@@ -45,11 +45,11 @@ def test_cannot_demote_last_admin(db):
     admin, _ = make_user(db, "Maciej", "m@x.pl", is_admin=True)
     with pytest.raises(ValidationError) as e:
         members.update_member(db, admin, name="Maciej", email="m@x.pl", language="en",
-                              is_admin=False, acting_admin=admin)
+                              is_admin=False)
     assert e.value.field == "is_admin"
     other, _ = make_user(db, "Z", "z@x.pl", is_admin=True)
     members.update_member(db, other, name="Z", email="z@x.pl", language="pl",
-                          is_admin=False, acting_admin=admin)
+                          is_admin=False)
     assert (other.is_admin, other.language) == (False, "pl")
 
 
@@ -58,7 +58,7 @@ def test_update_member_email_conflict(db):
     make_user(db, "B", "b@x.pl")
     with pytest.raises(ValidationError) as e:
         members.update_member(db, a, name="A", email="B@x.pl", language="en",
-                              is_admin=True, acting_admin=a)
+                              is_admin=True)
     assert e.value.field == "email"
 
 

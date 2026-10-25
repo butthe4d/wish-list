@@ -155,3 +155,26 @@ def test_exception_log_has_no_share_key(app, client, monkeypatch, caplog):
     messages = [r.getMessage() for r in caplog.records]
     assert any("/s/***" in m for m in messages)
     assert not any(key in m for m in messages)
+
+
+def test_stale_shared_page_is_localized_404(app, db, item_in_list):
+    _, wl = item_in_list
+    r = app.test_client().get(f"/shared/{wl.id}", headers={"Accept-Language": "pl"})
+    assert r.status_code == 404
+    assert "Nieprawidłowy link" in r.text
+    assert "Not Found" not in r.text and "The requested URL" not in r.text
+
+
+def test_unknown_path_gets_generic_localized_404(client):
+    r = client.get("/nope", headers={"Accept-Language": "pl"})
+    assert r.status_code == 404
+    assert "Nie znaleziono strony" in r.text and "Not Found" not in r.text
+    assert "Page not found" in client.get("/nope").text
+
+
+def test_reserve_error_page_switcher_returns_to_shared_list(app, db, item_in_list):
+    item, wl = item_in_list
+    c = _guest(app, wl)
+    r = c.post(_url(wl, item, "reserve"), data={"name": ""})
+    assert r.status_code == 400
+    assert f'name="next" value="/shared/{wl.id}"' in r.text

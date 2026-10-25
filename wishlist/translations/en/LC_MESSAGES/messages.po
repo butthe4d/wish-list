@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-25 18:36-0400\n"
+"POT-Creation-Date: 2026-10-25 19:08-0400\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -18,27 +18,31 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: wishlist/catalog.py:32 wishlist/catalog.py:36
+#: wishlist/__init__.py:48
+msgid "This page expired, please try again."
+msgstr ""
+
+#: wishlist/catalog.py:33 wishlist/catalog.py:37
 msgid "The link must start with http:// or https://."
 msgstr ""
 
-#: wishlist/catalog.py:42
+#: wishlist/catalog.py:43
 msgid "The link is not a valid address."
 msgstr ""
 
-#: wishlist/catalog.py:44
+#: wishlist/catalog.py:45
 msgid "The link is too long."
 msgstr ""
 
-#: wishlist/catalog.py:51 wishlist/catalog.py:135 wishlist/members.py:28
+#: wishlist/catalog.py:52 wishlist/catalog.py:140 wishlist/members.py:28
 msgid "Name is required."
 msgstr ""
 
-#: wishlist/catalog.py:53 wishlist/catalog.py:137 wishlist/reservations.py:33
+#: wishlist/catalog.py:54 wishlist/catalog.py:142 wishlist/reservations.py:33
 msgid "Name is too long."
 msgstr ""
 
-#: wishlist/catalog.py:56 wishlist/catalog.py:140
+#: wishlist/catalog.py:57 wishlist/catalog.py:145
 msgid "Description is too long."
 msgstr ""
 
@@ -125,21 +129,21 @@ msgstr ""
 msgid "Please enter your name."
 msgstr ""
 
-#: wishlist/sharing.py:44
+#: wishlist/sharing.py:45
 msgid "Enter at least one email address."
 msgstr ""
 
-#: wishlist/sharing.py:46
+#: wishlist/sharing.py:47
 #, python-format
 msgid "Enter at most %(n)d email addresses."
 msgstr ""
 
-#: wishlist/sharing.py:50
+#: wishlist/sharing.py:51
 #, python-format
 msgid "This is not a valid email address: %(address)s"
 msgstr ""
 
-#: wishlist/sharing.py:59
+#: wishlist/sharing.py:60
 msgid "Use international format, e.g. +48600100200."
 msgstr ""
 
@@ -341,6 +345,18 @@ msgstr ""
 msgid "Delete list"
 msgstr ""
 
+#: wishlist/templates/not_found.html:2 wishlist/templates/not_found.html:4
+msgid "Page not found"
+msgstr ""
+
+#: wishlist/templates/not_found.html:5
+msgid "There is nothing at this address."
+msgstr ""
+
+#: wishlist/templates/not_found.html:5
+msgid "Go to the start page"
+msgstr ""
+
 #: wishlist/templates/shared_list.html:5
 #, python-format
 msgid "Wishlist of %(name)s"
@@ -481,11 +497,11 @@ msgstr ""
 msgid "No lists yet."
 msgstr ""
 
-#: wishlist/views/admin.py:102
+#: wishlist/views/admin.py:101
 msgid "Reservation cancelled."
 msgstr ""
 
-#: wishlist/views/admin.py:111
+#: wishlist/views/admin.py:110
 msgid "Warning dismissed."
 msgstr ""
 
@@ -501,25 +517,25 @@ msgstr ""
 msgid "Member deleted."
 msgstr ""
 
-#: wishlist/views/member.py:228 wishlist/views/member.py:253
+#: wishlist/views/member.py:226 wishlist/views/member.py:251
 msgid "Daily sending limit reached, try again tomorrow."
 msgstr ""
 
-#: wishlist/views/member.py:232 wishlist/views/member.py:257
+#: wishlist/views/member.py:230 wishlist/views/member.py:255
 #, python-format
 msgid "Sent to %(recipients)s."
 msgstr ""
 
-#: wishlist/views/member.py:234
+#: wishlist/views/member.py:232
 #, python-format
 msgid "Couldn't send to %(recipients)s."
 msgstr ""
 
-#: wishlist/views/member.py:255
+#: wishlist/views/member.py:253
 msgid "Couldn't send the text message."
 msgstr ""
 
-#: wishlist/views/member.py:267
+#: wishlist/views/member.py:265
 msgid "New share link created. The old link no longer works."
 msgstr ""
 

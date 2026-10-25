@@ -40,7 +40,8 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['owner_id'], ['user.id'], name=op.f('fk_item_owner_id_user'), ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_item'))
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_item')),
+    sqlite_autoincrement=True
     )
     op.create_table('wishlist',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -66,16 +67,20 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['item_id'], ['item.id'], name=op.f('fk_reservation_item_id_item'), ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['via_wishlist_id'], ['wishlist.id'], name=op.f('fk_reservation_via_wishlist_id_wishlist'), ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_reservation')),
-    sa.UniqueConstraint('item_id', name=op.f('uq_reservation_item_id'))
+    sa.UniqueConstraint('item_id', name=op.f('uq_reservation_item_id')),
+    sqlite_autoincrement=True
     )
     op.create_table('share_log',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('wishlist_id', sa.Integer(), nullable=False),
+    sa.Column('sharer_id', sa.Integer(), nullable=False),
+    sa.Column('wishlist_id', sa.Integer(), nullable=True),
     sa.Column('channel', sa.String(length=10), nullable=False),
     sa.Column('recipient', sa.String(length=254), nullable=False),
     sa.Column('sent_at', sa.DateTime(), nullable=False),
-    sa.ForeignKeyConstraint(['wishlist_id'], ['wishlist.id'], name=op.f('fk_share_log_wishlist_id_wishlist'), ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_share_log'))
+    sa.ForeignKeyConstraint(['sharer_id'], ['user.id'], name=op.f('fk_share_log_sharer_id_user'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['wishlist_id'], ['wishlist.id'], name=op.f('fk_share_log_wishlist_id_wishlist'), ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_share_log')),
+    sqlite_autoincrement=True
     )
     op.create_table('wishlist_items',
     sa.Column('wishlist_id', sa.Integer(), nullable=False),

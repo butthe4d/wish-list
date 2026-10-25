@@ -82,13 +82,18 @@ def test_deleting_item_removes_reservation_and_links(db, user):
     assert db.scalar(sa.select(sa.func.count()).select_from(sa.table("wishlist_items"))) == 0
 
 
-def test_share_log_cascades_with_wishlist(db, user):
+def test_share_log_survives_wishlist_deletion_but_not_sharer(db, user):
     wl = Wishlist(owner=user, name="W")
-    wl.share_logs.append(ShareLog(channel="email", recipient="a@b.c"))
+    wl.share_logs.append(ShareLog(sharer_id=user.id, channel="email", recipient="a@b.c"))
     db.add(wl)
     db.commit()
     assert wl.share_version == 1
     db.delete(wl)
+    db.commit()
+    db.expire_all()
+    log = db.scalars(sa.select(ShareLog)).one()
+    assert log.wishlist_id is None and log.sharer_id == user.id
+    db.delete(user)
     db.commit()
     assert db.scalar(sa.select(sa.func.count()).select_from(ShareLog)) == 0
 

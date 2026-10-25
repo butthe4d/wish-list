@@ -172,3 +172,22 @@ def test_sole_admin_cannot_demote_self(admin_client, db):
     assert r.status_code == 200 and 'role="alert"' in r.text
     db.refresh(admin)
     assert admin.is_admin
+
+
+def test_new_member_form_defaults_to_configured_language(app_config, db, mailer, sms):
+    from dataclasses import replace
+
+    from wishlist import create_app
+
+    _, key = make_user(db, "Maciej", "maciej@example.com", is_admin=True)
+    app = create_app(replace(app_config, default_language="pl"), mailer=mailer, sms=sms)
+    app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
+    c = app.test_client()
+    login(c, key)
+    html = c.get("/admin/members/new").text
+    assert '<option value="pl" selected>' in html
+
+
+def test_language_switcher_lists_all_supported_languages(client):
+    html = client.get("/").text
+    assert ">English</button>" in html and ">Polski</button>" in html

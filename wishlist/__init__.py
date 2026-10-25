@@ -1,8 +1,12 @@
 import os
 from datetime import timedelta
 
-from flask import Flask
+from urllib.parse import urlsplit
+
+from flask import Flask, flash, redirect, render_template, request
+from flask_babel import gettext as _
 from flask_wtf import CSRFProtect
+from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
@@ -27,6 +31,8 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
 
     app.extensions["mailer"] = build_mailer(config, mailer)
     app.extensions["sms"] = build_sms(config, sms)
+    # the token lives as long as the (year-long) session instead of expiring after an hour
+    app.config["WTF_CSRF_TIME_LIMIT"] = None
     CSRFProtect(app)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
@@ -34,6 +40,25 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     def security_headers(response):
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
+
+    @app.errorhandler(CSRFError)
+    def csrf_failed(error):
+        from .i18n import safe_next
+
+        flash(_("This page expired, please try again."))
+        target = request.referrer or ""
+        parts = urlsplit(target)
+        if parts.netloc:
+            target = (parts.path + ("?" + parts.query if parts.query else "")) if (
+                parts.netloc == request.host
+            ) else ""
+        return redirect(safe_next(target))
+
+    @app.errorhandler(404)
+    def not_found(error):
+        if request.path.startswith(("/u/", "/s/", "/shared/")):
+            return render_template("link_invalid.html"), 404
+        return render_template("not_found.html"), 404
 
     @app.get("/healthz")
     def healthz():

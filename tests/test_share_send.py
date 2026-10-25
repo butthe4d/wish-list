@@ -171,7 +171,7 @@ def test_share_email_newline_in_list_name_single_line_subject(client, db, mailer
 
 def _fill_log(db, wl, channel, n, age=timedelta(hours=1)):
     for i in range(n):
-        db.add(ShareLog(wishlist_id=wl.id, channel=channel, recipient=f"r{i}", sent_at=utcnow() - age))
+        db.add(ShareLog(sharer_id=wl.owner_id, wishlist_id=wl.id, channel=channel, recipient=f"r{i}", sent_at=utcnow() - age))
     db.commit()
 
 
@@ -194,3 +194,24 @@ def test_email_batch_over_quota_refused(client, db, mailer):
     assert mailer.sent == [] and db.query(ShareLog).count() == 49
     client.post(f"/lists/{wl.id}/share/email", data={"emails": "a@y.com"})
     assert len(mailer.sent) == 1
+
+
+def test_deleting_a_list_does_not_reset_the_daily_cap(client, db, sms):
+    u, wl = _owner_list(client, db)
+    for i in range(20):
+        r = client.post(f"/lists/{wl.id}/share/sms", data={"phone": f"+4860010{i:04d}"})
+        assert r.status_code == 302
+    assert len(sms.sent) == 20
+    assert client.post(f"/lists/{wl.id}/delete").status_code == 302
+    db.expire_all()
+    assert db.query(ShareLog).filter_by(channel="sms").count() == 20  # kept, detached
+    wl2 = create_wishlist(db, u, name="Second", description=None)
+    r = client.post(f"/lists/{wl2.id}/share/sms", data={"phone": "+48600100299"}, follow_redirects=True)
+    assert "Daily sending limit reached, try again tomorrow." in r.text
+    assert len(sms.sent) == 20
+
+
+def test_owner_view_still_lists_shares_of_the_list(client, db, mailer):
+    _, wl = _owner_list(client, db)
+    client.post(f"/lists/{wl.id}/share/email", data={"emails": "b@y.com"})
+    assert "b@y.com" in client.get(f"/lists/{wl.id}").text

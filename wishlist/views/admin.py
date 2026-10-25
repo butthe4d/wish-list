@@ -3,10 +3,9 @@ from flask_babel import gettext as _
 
 from .. import members, reservations
 from ..auth import admin_required, current_user
-from ..config import SUPPORTED_LANGUAGES
+from ..config import LANGUAGE_NAMES
 from ..db import get_session
 from ..errors import ValidationError
-from ..i18n import LANGUAGE_NAMES
 from ..keys import personal_link
 from ..models import Reservation, User
 from ..notify import get_mailer
@@ -24,7 +23,7 @@ def _get_member(uid: int) -> User:
 def _render_form(member, form, error=None):
     return render_template(
         "admin/member_form.html", member=member, form=form, error=error,
-        languages=[(c, LANGUAGE_NAMES.get(c, c)) for c in SUPPORTED_LANGUAGES],
+        languages=list(LANGUAGE_NAMES.items()),
     ), 200
 
 
@@ -127,7 +126,9 @@ def member_new():
         except ValidationError as e:
             return _render_form(None, request.form, e)
         return _render_link_once(user, key)
-    return _render_form(None, {"language": "en"})
+    return _render_form(
+        None, {"language": current_app.config["WISHLIST"].default_language}
+    )
 
 
 @bp.route("/members/<int:uid>/edit", methods=["GET", "POST"])
@@ -143,7 +144,6 @@ def member_edit(uid):
                 email=request.form.get("email", ""),
                 language=request.form.get("language", ""),
                 is_admin=request.form.get("is_admin") == "on",
-                acting_admin=current_user(),
             )
         except ValidationError as e:
             s.rollback()

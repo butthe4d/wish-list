@@ -44,6 +44,8 @@ class User(Base):
 
 class Item(Base):
     __tablename__ = "item"
+    # never reuse ids: stale pages must not act on a different row
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"))
@@ -79,12 +81,14 @@ class Wishlist(Base):
     owner: Mapped[User] = relationship(back_populates="wishlists")
     items: Mapped[list[Item]] = relationship(secondary=wishlist_items, back_populates="wishlists")
     share_logs: Mapped[list[ShareLog]] = relationship(
-        back_populates="wishlist", cascade="all, delete-orphan", passive_deletes=True
+        back_populates="wishlist", passive_deletes=True
     )
 
 
 class Reservation(Base):
     __tablename__ = "reservation"
+    # never reuse ids: a stale admin page must not cancel someone else's reservation
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("item.id", ondelete="CASCADE"), unique=True)
@@ -103,11 +107,14 @@ class Reservation(Base):
 
 class ShareLog(Base):
     __tablename__ = "share_log"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    wishlist_id: Mapped[int] = mapped_column(ForeignKey("wishlist.id", ondelete="CASCADE"))
+    # the daily sending cap counts by sharer, so deleting a list can't reset it
+    sharer_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"))
+    wishlist_id: Mapped[int | None] = mapped_column(ForeignKey("wishlist.id", ondelete="SET NULL"))
     channel: Mapped[str] = mapped_column(String(10))
     recipient: Mapped[str] = mapped_column(String(254))
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    wishlist: Mapped[Wishlist] = relationship(back_populates="share_logs")
+    wishlist: Mapped[Wishlist | None] = relationship(back_populates="share_logs")

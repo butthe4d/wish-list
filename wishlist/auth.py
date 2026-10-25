@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import Blueprint, redirect, render_template, session, url_for
+from flask import Blueprint, abort, redirect, render_template, session, url_for
 
 from .db import get_session
 from .keys import hash_key
@@ -34,7 +34,7 @@ def admin_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         if not current_user().is_admin:
-            return render_template("link_invalid.html"), 404
+            abort(404)
         return view(*args, **kwargs)
 
     return wrapped

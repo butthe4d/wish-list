@@ -9,11 +9,9 @@ from ..db import get_session
 from ..errors import ValidationError
 from ..notify import DeliveryError, get_mailer, get_sms
 from ..models import Item
+from ..urls import MAX_ID
 
 bp = Blueprint("member", __name__)
-
-
-_SQLITE_MAX_INT = 2**63 - 1
 
 
 def _form_ids(field: str) -> list[int]:
@@ -21,7 +19,7 @@ def _form_ids(field: str) -> list[int]:
         ids = [int(v) for v in request.form.getlist(field)]
     except ValueError:
         abort(404)
-    if any(not 0 < i <= _SQLITE_MAX_INT for i in ids):
+    if any(not 0 < i <= MAX_ID for i in ids):
         abort(404)
     return ids
 

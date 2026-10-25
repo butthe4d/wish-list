@@ -1,6 +1,6 @@
 # Wish List
 
-A small, self-hosted wishlist app for a household or a circle of friends. Each member keeps a catalog of items and groups them into lists. Lists can be shared with other members or sent to outsiders by link. Visitors reserve items so nobody buys the same gift twice, and the list owner never sees which of their items are reserved, so the surprise stays intact.
+A small, self-hosted wishlist app for a household or a circle of friends. Each member keeps a catalog of items and groups them into lists. Each list can be shared by email or SMS link with anyone, member or not. Visitors reserve items so nobody buys the same gift twice, and the list owner never sees which of their items are reserved, so the surprise stays intact.
 
 Features: personal login links (no passwords), email and optional SMS sharing, English and Polish UI, a single Docker image, SQLite storage.
 
@@ -26,7 +26,7 @@ All configuration comes from environment variables.
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `BASE_URL` | yes | | Public URL of the app, for example `https://wish.example.com`. Every link the app creates is built from it. |
-| `SECRET_KEY` | yes | | At least 32 characters, not a placeholder. Signs sessions and derives share links. See below. |
+| `SECRET_KEY` | yes | | At least 32 characters. Signs sessions and derives share links. See below. |
 | `DATABASE_URL` | no | `sqlite:////data/wishlist.db` | SQLAlchemy URL. |
 | `ADMIN_EMAIL` | no | | Email of the first admin, created on first start when no members exist. |
 | `ADMIN_NAME` | no | part of `ADMIN_EMAIL` before `@` | Name of the first admin. |
@@ -100,7 +100,7 @@ Keep your `SECRET_KEY` with the backup, or share links will have to be sent agai
 
 ## Adding a language
 
-1. Add the language code to `SUPPORTED_LANGUAGES` in `wishlist/config.py` and its display name to `LANGUAGE_NAMES` in `wishlist/i18n.py`.
+1. Add the language code and its display name to `LANGUAGE_NAMES` in `wishlist/config.py` (`SUPPORTED_LANGUAGES` and the language switcher and member form follow from it).
 2. Run `.venv/bin/pybabel init -i wishlist/translations/messages.pot -d wishlist/translations -l <code>` (or `make i18n-update` first to refresh the template).
 3. Translate every message in `wishlist/translations/<code>/LC_MESSAGES/messages.po`. The translation test fails on missing or fuzzy entries.
 4. `make test`.
@@ -114,7 +114,7 @@ make i18n-compile
 make test
 ```
 
-Run locally with `BASE_URL=http://localhost:8000 SECRET_KEY=dev ADMIN_EMAIL=you@example.com DATABASE_URL=sqlite:///dev.db .venv/bin/python -m wishlist.bootstrap`, then `.venv/bin/flask --app "wishlist:create_app()" run`.
+Run locally with `BASE_URL=http://localhost:8000 SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(48))") ADMIN_EMAIL=you@example.com DATABASE_URL=sqlite:///dev.db .venv/bin/python -m wishlist.bootstrap`, then `.venv/bin/flask --app "wishlist:create_app()" run`.
 
 ## Licenses
 

@@ -158,3 +158,29 @@ def test_preloaded_wishlists_still_detect_deleted_list(db, member, admin, mailer
     assert [w.id for w in item.wishlists] == [wl.id]  # loaded; session does not expire on commit
     delete_wishlist(db, wl)
     assert len(mailer.sent) == 1
+
+
+def test_dismissed_warning_does_not_hide_a_second_orphaning(db, member, admin, mailer):
+    item, (wl,) = _reserved(db, member)
+    remove_item_from_wishlist(db, wl, item)
+    assert len(mailer.sent) == 1
+    (r,) = orphaned_reservations(db, admin, reveal_own=False)
+    dismiss_warning(db, r)
+    assert orphaned_reservations(db, admin, reveal_own=False) == []
+
+    add_items_to_wishlist(db, wl, [item.id])  # regains a list: no longer orphaned
+    assert db.get(Reservation, r.id).warning_dismissed_at is None
+    delete_item(db, item)  # orphaned again
+
+    assert len(mailer.sent) == 2
+    assert len(orphaned_reservations(db, admin, reveal_own=False)) == 1
+
+
+def test_update_item_regaining_a_list_resets_dismissal(db, member, admin, mailer):
+    item, (wl,) = _reserved(db, member)
+    remove_item_from_wishlist(db, wl, item)
+    dismiss_warning(db, orphaned_reservations(db, admin, reveal_own=False)[0])
+    update_item(db, item, name="Lamp", description=None, link=None, wishlist_ids=[wl.id])
+    update_item(db, item, name="Lamp", description=None, link=None, wishlist_ids=[])
+    assert len(mailer.sent) == 2
+    assert len(orphaned_reservations(db, admin, reveal_own=False)) == 1

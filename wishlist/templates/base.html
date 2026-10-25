@@ -28,9 +28,10 @@
   <footer>
     <form method="post" action="/lang" hx-boost="false">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') if request.method == 'GET' else '/' }}">
-      <button type="submit" name="lang" value="en" class="secondary outline">English</button>
-      <button type="submit" name="lang" value="pl" class="secondary outline">Polski</button>
+      <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') if request.method == 'GET' else (url_for('shared.view', wl_id=request.view_args['wl_id']) if request.endpoint and request.endpoint.startswith('shared.') and request.view_args and 'wl_id' in request.view_args else '/') }}">
+      {% for code, label in language_names.items() %}
+      <button type="submit" name="lang" value="{{ code }}" class="secondary outline">{{ label }}</button>
+      {% endfor %}
     </form>
   </footer>
 </body>
