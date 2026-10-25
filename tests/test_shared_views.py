@@ -1,4 +1,4 @@
-from conftest import login, make_user
+from conftest import TEST_SECRET, login, make_user
 
 from wishlist.catalog import add_items_to_wishlist, create_item, create_wishlist, delete_item
 from wishlist.keys import share_key
@@ -7,7 +7,7 @@ from wishlist.sharing import regenerate_share_key
 
 
 def _key(wl):
-    return share_key("test-secret", wl.id, wl.share_version)
+    return share_key(TEST_SECRET, wl.id, wl.share_version)
 
 
 def _guest(app, wl):
@@ -141,3 +141,17 @@ def test_blank_name_shows_error(app, db, item_in_list):
     assert r.status_code in (200, 400)
     assert "Please enter your name." in r.text
     assert db.query(Reservation).count() == 0
+
+
+def test_exception_log_has_no_share_key(app, client, monkeypatch, caplog):
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("wishlist.sharing.open_share", boom)
+    app.config["PROPAGATE_EXCEPTIONS"] = False
+    key = "1.abcDEF123_-abcDEF123_-abcDEF123_-abcDEF123_-"
+    with caplog.at_level("ERROR", logger=app.logger.name):
+        assert client.get(f"/s/{key}").status_code == 500
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("/s/***" in m for m in messages)
+    assert not any(key in m for m in messages)

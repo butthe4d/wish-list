@@ -1,5 +1,5 @@
 import pytest
-from conftest import login, make_user
+from conftest import TEST_SECRET, login, make_user
 from fakes import FailingMailer, FailingSms
 
 from wishlist import create_app
@@ -51,7 +51,7 @@ def test_share_email_sends_link_and_logs(client, db, mailer):
     r = client.post(f"/lists/{wl.id}/share/email", data={"emails": "b@y.com, c@z.org"})
     assert r.status_code == 302
     assert [m[0] for m in mailer.sent] == ["b@y.com", "c@z.org"]
-    link = "https://wish.example/s/" + share_key("test-secret", wl.id, 1)
+    link = "https://wish.example/s/" + share_key(TEST_SECRET, wl.id, 1)
     assert all(link in body for _, _, body in mailer.sent)
     logs = db.query(ShareLog).order_by(ShareLog.id).all()
     assert [(l.channel, l.recipient) for l in logs] == [("email", "b@y.com"), ("email", "c@z.org")]
@@ -123,11 +123,11 @@ def test_share_routes_only_for_owner(client, db, mailer):
 
 def test_regenerate_changes_link_and_redirects(client, db):
     _, wl = _owner_list(client, db)
-    old = share_key("test-secret", wl.id, 1)
+    old = share_key(TEST_SECRET, wl.id, 1)
     r = client.post(f"/lists/{wl.id}/share/regenerate")
     assert r.status_code == 302 and r.headers["Location"].endswith(f"/lists/{wl.id}")
     page = client.get(f"/lists/{wl.id}").text
-    assert share_key("test-secret", wl.id, 2) in page and old not in page
+    assert share_key(TEST_SECRET, wl.id, 2) in page and old not in page
     assert "Create new share link (old one stops working)" in page
 
 

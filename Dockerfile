@@ -18,7 +18,6 @@ ENV PATH="/venv/bin:$PATH" \
 RUN useradd --uid 1000 --create-home app && mkdir /data && chown app:app /data
 COPY --from=build /venv /venv
 COPY --chmod=755 docker/entrypoint.sh /app/docker/entrypoint.sh
-USER app
 WORKDIR /app
 VOLUME /data
 EXPOSE 8000

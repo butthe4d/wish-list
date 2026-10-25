@@ -11,3 +11,4 @@ data
 .smoke-data
 tests
 docs
+.env

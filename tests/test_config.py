@@ -2,6 +2,8 @@ import pytest
 
 from wishlist.config import Config, ConfigError
 
+LONG = "k" * 40
+
 
 def test_requires_base_url_and_secret():
     with pytest.raises(ConfigError) as e:
@@ -10,7 +12,7 @@ def test_requires_base_url_and_secret():
 
 
 def test_defaults_and_trailing_slash():
-    c = Config.from_env({"BASE_URL": "https://w.example/", "SECRET_KEY": "s"})
+    c = Config.from_env({"BASE_URL": "https://w.example/", "SECRET_KEY": LONG})
     assert c.base_url == "https://w.example"
     assert c.database_url == "sqlite:////data/wishlist.db"
     assert c.default_language == "en"
@@ -18,7 +20,7 @@ def test_defaults_and_trailing_slash():
 
 
 def test_smtp_from_defaults_to_user_and_port_parsed():
-    c = Config.from_env({"BASE_URL": "https://w", "SECRET_KEY": "s", "SMTP_HOST": "smtp.gmail.com",
+    c = Config.from_env({"BASE_URL": "https://w", "SECRET_KEY": LONG, "SMTP_HOST": "smtp.gmail.com",
                          "SMTP_PORT": "465", "SMTP_USER": "me@gmail.com", "SMTP_SECURITY": "ssl"})
     assert c.email_enabled and c.smtp_port == 465 and c.smtp_from == "me@gmail.com"
 
@@ -26,4 +28,15 @@ def test_smtp_from_defaults_to_user_and_port_parsed():
 @pytest.mark.parametrize("key,val", [("SMTP_SECURITY", "tls"), ("DEFAULT_LANGUAGE", "de"), ("SMTP_PORT", "abc")])
 def test_rejects_invalid_values(key, val):
     with pytest.raises(ConfigError):
-        Config.from_env({"BASE_URL": "https://w", "SECRET_KEY": "s", key: val})
+        Config.from_env({"BASE_URL": "https://w", "SECRET_KEY": LONG, key: val})
+
+
+@pytest.mark.parametrize("secret", ["s", "k" * 31, "change-me", "changeme", "secret", "dev", "CHANGE-ME"])
+def test_rejects_weak_secret_key(secret):
+    with pytest.raises(ConfigError) as e:
+        Config.from_env({"BASE_URL": "https://w", "SECRET_KEY": secret})
+    assert "token_urlsafe" in str(e.value)
+
+
+def test_accepts_32_char_secret_key():
+    assert Config.from_env({"BASE_URL": "https://w", "SECRET_KEY": "k" * 32}).secret_key == "k" * 32

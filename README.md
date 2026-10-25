@@ -6,7 +6,7 @@ Features: personal login links (no passwords), email and optional SMS sharing, E
 
 ## Quick start
 
-1. Copy [`docker-compose.yml`](docker-compose.yml) to a new directory and edit `BASE_URL`, `SECRET_KEY` and `ADMIN_EMAIL`.
+1. Copy [`docker-compose.yml`](docker-compose.yml) to a new directory and edit `BASE_URL` and `ADMIN_EMAIL`. Create a `.env` file next to it containing `SECRET_KEY=<value>` (generate one as described under [SECRET_KEY](#secret_key); compose refuses to start without it).
 2. Start it:
 
    ```sh
@@ -17,7 +17,7 @@ Features: personal login links (no passwords), email and optional SMS sharing, E
 3. Open the printed `Admin link: ...` in your browser. That link is your login, so keep it private. The first admin is created only when the database is empty.
 4. In the admin page, add the other members. Each gets their own personal link, shown on screen and emailed if SMTP is configured.
 
-The database lives in `./data/wishlist.db`. Migrations run automatically at every start. The container runs as uid 1000, so `./data` must be writable by that user (`chown 1000 data`).
+The database lives in `./data/wishlist.db`. Migrations run automatically at every start. The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
 
 ## Configuration
 
@@ -26,7 +26,7 @@ All configuration comes from environment variables.
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `BASE_URL` | yes | | Public URL of the app, for example `https://wish.example.com`. Every link the app creates is built from it. |
-| `SECRET_KEY` | yes | | Signs sessions and derives share links. See below. |
+| `SECRET_KEY` | yes | | At least 32 characters, not a placeholder. Signs sessions and derives share links. See below. |
 | `DATABASE_URL` | no | `sqlite:////data/wishlist.db` | SQLAlchemy URL. |
 | `ADMIN_EMAIL` | no | | Email of the first admin, created on first start when no members exist. |
 | `ADMIN_NAME` | no | part of `ADMIN_EMAIL` before `@` | Name of the first admin. |

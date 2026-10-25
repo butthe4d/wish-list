@@ -14,6 +14,9 @@ from wishlist.models import User
 from fakes import RecordingMailer, RecordingSms
 
 
+TEST_SECRET = "test-secret-" + "x" * 32
+
+
 @pytest.fixture(scope="session", autouse=True)
 def compiled_translations():
     root = Path(__file__).resolve().parent.parent
@@ -29,7 +32,7 @@ def compiled_translations():
 def app_config(tmp_path):
     return Config(
         base_url="https://wish.example",
-        secret_key="test-secret",
+        secret_key=TEST_SECRET,
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
     )
 

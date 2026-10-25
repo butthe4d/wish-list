@@ -5,9 +5,11 @@ from wishlist.keys import hash_key
 
 from fakes import RecordingMailer
 
+LONG = "k" * 40
+
 
 def _env(monkeypatch, tmp_path, **extra):
-    env = {"BASE_URL": "https://wish.example", "SECRET_KEY": "s",
+    env = {"BASE_URL": "https://wish.example", "SECRET_KEY": LONG,
            "DATABASE_URL": f"sqlite:///{tmp_path / 'b.db'}", **extra}
     for k in ("ADMIN_EMAIL", "ADMIN_NAME", "SMTP_HOST", "DEFAULT_LANGUAGE"):
         monkeypatch.delenv(k, raising=False)

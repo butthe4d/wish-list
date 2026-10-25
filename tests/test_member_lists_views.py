@@ -1,4 +1,4 @@
-from conftest import login, make_user
+from conftest import TEST_SECRET, login, make_user
 
 from wishlist.catalog import add_items_to_wishlist, create_item, create_wishlist
 from wishlist.keys import share_key
@@ -44,7 +44,7 @@ def test_owner_page_shows_items_share_link_and_picker(client, db, app):
     inside, outside = _item(db, u, "Inside"), _item(db, u, "Outside")
     add_items_to_wishlist(db, wl, [inside.id])
     html = client.get(f"/lists/{wl.id}").text
-    key = share_key("test-secret", wl.id, wl.share_version)
+    key = share_key(TEST_SECRET, wl.id, wl.share_version)
     assert f"https://wish.example/s/{key}" in html
     assert "/s/" in html
     assert "Inside" in html and "Outside" in html

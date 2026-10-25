@@ -7,6 +7,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .db import init_db
+from .logredact import RedactingFilter
 from .urls import BoundedIntConverter
 
 
@@ -15,6 +16,7 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
         config = Config.from_env(os.environ)
     app = Flask(__name__)
     app.config["WISHLIST"] = config
+    app.logger.addFilter(RedactingFilter())
     app.config["SECRET_KEY"] = config.secret_key
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=365)
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"

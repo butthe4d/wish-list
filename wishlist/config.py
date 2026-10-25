@@ -5,6 +5,8 @@ from typing import Mapping
 
 SUPPORTED_LANGUAGES: tuple[str, ...] = ("en", "pl")
 SMTP_SECURITY_MODES = ("starttls", "ssl", "none")
+MIN_SECRET_KEY_LENGTH = 32
+PLACEHOLDER_SECRET_KEYS = ("change-me", "changeme", "secret", "dev")
 
 
 class ConfigError(Exception):
@@ -44,6 +46,13 @@ class Config:
         missing = [n for n in ("BASE_URL", "SECRET_KEY") if not get(n)]
         if missing:
             raise ConfigError("Missing required environment variables: " + ", ".join(missing))
+
+        secret = get("SECRET_KEY")
+        if len(secret) < MIN_SECRET_KEY_LENGTH or secret.lower() in PLACEHOLDER_SECRET_KEYS:
+            raise ConfigError(
+                f"SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters and not a placeholder. "
+                'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))"'
+            )
 
         language = get("DEFAULT_LANGUAGE") or "en"
         if language not in SUPPORTED_LANGUAGES:

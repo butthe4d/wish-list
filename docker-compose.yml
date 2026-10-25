@@ -9,8 +9,9 @@ services:
     environment:
       # Required. Public URL of the app, used in every link the app creates.
       BASE_URL: https://wish.example.com
-      # Required. Generate with: python -c "import secrets; print(secrets.token_urlsafe(48))"
-      SECRET_KEY: change-me
+      # Required, at least 32 characters. Put it in a .env file next to this one (SECRET_KEY=...).
+      # Generate with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       # The first admin is created on first start; their personal link is printed in the container log.
       ADMIN_EMAIL: you@example.com
       ADMIN_NAME: You
