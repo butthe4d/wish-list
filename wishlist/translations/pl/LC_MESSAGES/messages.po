@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-25 19:08-0400\n"
+"POT-Creation-Date: 2026-10-26 03:15-0400\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pl\n"
@@ -166,13 +166,13 @@ msgstr "To nie jest poprawny adres e-mail: %(address)s"
 msgid "Use international format, e.g. +48600100200."
 msgstr "Użyj formatu międzynarodowego, np. +48600100200."
 
-#: wishlist/templates/base.html:6 wishlist/templates/base.html:15
+#: wishlist/templates/base.html:6 wishlist/templates/base.html:16
 msgid "Wishlist"
 msgstr "Lista życzeń"
 
 #: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:5
 #: wishlist/templates/admin/index.html:37
-#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:17
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:18
 msgid "Admin"
 msgstr "Administrator"
 
@@ -313,6 +313,12 @@ msgstr "Udostępnij"
 msgid "Share link"
 msgstr "Link do udostępniania"
 
+#: wishlist/templates/admin/link_once.html:17
+#: wishlist/templates/list_owner.html:50
+msgid "Copied!"
+msgstr "Skopiowano!"
+
+#: wishlist/templates/admin/link_once.html:17
 #: wishlist/templates/list_owner.html:50
 msgid "Copy link"
 msgstr "Kopiuj link"
@@ -492,13 +498,13 @@ msgstr "Nie udało się wysłać e-maila — skopiuj link i przekaż go osobiśc
 msgid "Email isn't configured — copy the link and give it to them yourself."
 msgstr "E-mail nie jest skonfigurowany — skopiuj link i przekaż go osobiście."
 
-#: wishlist/templates/admin/link_once.html:16
+#: wishlist/templates/admin/link_once.html:18
 msgid "This link won't be shown again. Anyone who has it can act as this member."
 msgstr ""
 "Ten link nie zostanie pokazany ponownie. Każdy, kto go ma, może działać "
 "jako ten członek."
 
-#: wishlist/templates/admin/link_once.html:17
+#: wishlist/templates/admin/link_once.html:19
 msgid "Back to admin"
 msgstr "Wróć do panelu administratora"
 

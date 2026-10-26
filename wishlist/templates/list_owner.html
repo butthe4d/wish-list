@@ -46,8 +46,8 @@
   <label>{{ _("Share link") }}
     <input type="text" id="share-url" value="{{ share_url }}" readonly onfocus="this.select()">
   </label>
-  <button type="button" class="secondary"
-          onclick="navigator.clipboard.writeText(document.getElementById('share-url').value)">{{ _("Copy link") }}</button>
+  <button type="button" class="secondary" data-copy-target="share-url"
+          data-copied-label="{{ _('Copied!') }}">{{ _("Copy link") }}</button>
   {% if can_email %}
   <form method="post" novalidate action="{{ url_for('member.share_email', wl_id=wl.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
