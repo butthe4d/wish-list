@@ -73,15 +73,24 @@ def is_orphaned(r: Reservation) -> bool:
     return r.item.deleted_at is not None or not r.item.wishlists
 
 
-def orphaned_reservations(s: Session, viewer: User, *, reveal_own: bool) -> list[Reservation]:
+def _pending_orphans(s: Session) -> list[Reservation]:
     pending = s.scalars(
         select(Reservation).where(Reservation.warning_dismissed_at.is_(None)).order_by(Reservation.id)
     )
-    return [
-        r
-        for r in pending
-        if is_orphaned(r) and (reveal_own or r.item.owner_id != viewer.id)
-    ]
+    return [r for r in pending if is_orphaned(r)]
+
+
+def orphaned_reservations(s: Session, owner: User) -> list[Reservation]:
+    """Undismissed warnings on one member's items. Only for a page the admin has
+    explicitly revealed for that member."""
+    return [r for r in _pending_orphans(s) if r.item.owner_id == owner.id]
+
+
+def owners_needing_attention(s: Session, viewer: User) -> set[int]:
+    """Ids of members with undismissed warnings, for a neutral marker that names no item
+    or reserver. The viewer's own items never count: even the marker would tell them a
+    gift of theirs was reserved."""
+    return {r.item.owner_id for r in _pending_orphans(s)} - {viewer.id}
 
 
 def orphan_state(s: Session, item: Item) -> bool:
@@ -91,19 +100,23 @@ def orphan_state(s: Session, item: Item) -> bool:
     return item.reservation is not None and is_orphaned(item.reservation)
 
 
-def notify_orphan(s: Session, item: Item, mailer: Mailer | None, *, was_orphaned: bool) -> None:
+def notify_orphan(
+    s: Session, item: Item, mailer: Mailer | None, *, was_orphaned: bool, base_url: str
+) -> None:
     """Email every admin except the item's owner when the item has just become orphaned
-    (was_orphaned is orphan_state taken before the change). Never emails for a dismissed
-    warning. Delivery errors are logged, never raised."""
+    (was_orphaned is orphan_state taken before the change). The email is neutral: it names
+    the member and links their admin page, never the item or the reserver. Never emails
+    for a dismissed warning. Delivery errors are logged, never raised."""
     if was_orphaned or not orphan_state(s, item) or mailer is None:
         return
     r = item.reservation
     if r.warning_dismissed_at is not None:
         return
     admins = s.scalars(select(User).where(User.is_admin.is_(True), User.id != item.owner_id))
+    link = f"{base_url}/admin/members/{item.owner_id}"
     for admin in list(admins):
         try:
-            subject, body = orphan_email(admin, r)
+            subject, body = orphan_email(admin, item.owner, link)
             mailer.send(admin.email, subject, body)
         except DeliveryError as e:
             log.warning("orphan notification to admin %s failed: %s", admin.id, e)

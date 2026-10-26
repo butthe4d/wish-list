@@ -90,7 +90,8 @@ def test_admin_nav_link_and_index(admin_client, db):
     make_user(db, "Ola", "ola@x.pl")
     assert 'href="/admin/"' in admin_client.get("/").text
     html = admin_client.get("/admin/").text
-    assert "ola@x.pl" in html and "Maciej" in html and 'id="warnings"' in html
+    assert "ola@x.pl" in html and "Maciej" in html
+    assert 'id="warnings"' not in html  # warnings live on each member's revealed page
 
 
 def test_edit_member(admin_client, db):

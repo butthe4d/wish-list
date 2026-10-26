@@ -21,7 +21,7 @@ Self-hosted Flask household wishlist app (Apache-2.0). Python 3.12+, SQLAlchemy 
 
 ## Invariants (do not break)
 
-- A list owner never sees reservation state of their own items, in any member or share view. Admins see it only on a page loaded with `?reveal=1` from the "Show reservations" button.
+- A list owner never sees reservation state of their own items, in any member or share view. In admin, every member's reservations (and orphan warnings) appear only on that member's page loaded with `?reveal=1` from the "Show reservations" button; the admin home page shows only a neutral "Needs attention" marker (never for the viewer's own items), and orphan emails name only the member.
 - External links are built from `BASE_URL`, never the request host.
 - `Referrer-Policy: no-referrer` on all responses; store links use `rel="noopener noreferrer" target="_blank"`.
 - Keys never reach logs (gunicorn logger redacts `/u/<key>`, `/s/<key>`).

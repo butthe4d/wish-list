@@ -5,8 +5,35 @@
 <h1>{{ member.name }}</h1>
 <p><a href="{{ url_for('admin.index') }}">{{ _("Back") }}</a></p>
 
-{% if not show_state %}
+{% macro reservation_action(r, action, label) %}
+<form method="post" novalidate style="display:inline"
+      action="{{ url_for('admin.reservation_' + action, rid=r.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="back_uid" value="{{ member.id }}">
+  <input type="hidden" name="reveal" value="1">
+  <button type="submit" class="secondary outline">{{ label }}</button>
+</form>
+{% endmacro %}
+
+{% if not reveal %}
+{% if needs_attention %}
+<p><mark>{{ _("Something on this member's lists needs your attention. Click \"Show reservations\" to see it.") }}</mark></p>
+{% endif %}
 <p><a href="{{ url_for('admin.member_lists', uid=member.id, reveal=1) }}" hx-boost="false" role="button" class="secondary outline">{{ _("Show reservations") }}</a></p>
+{% else %}
+<section id="warnings">
+  <h2>{{ _("Warnings") }}</h2>
+  {% for r in warnings %}
+  <article>
+    <p>
+      {{ _("%(item)s — deleted/removed by %(owner)s, reserved by %(name)s via %(list)s",
+           item=r.item.name, owner=r.item.owner.name, name=r.reserver_name, list=r.via_wishlist_name) }}
+    </p>
+    {{ reservation_action(r, "dismiss", _("Dismiss warning")) }}
+    {{ reservation_action(r, "cancel", _("Cancel reservation")) }}
+  </article>
+  {% else %}<p>{{ _("No warnings.") }}</p>{% endfor %}
+</section>
 {% endif %}
 
 {% for wl in member.wishlists %}
@@ -17,14 +44,9 @@
     {% for item in wl.items %}
     <li>
       <strong>{{ item.name }}</strong>
-      {% if show_state and item.reservation %}
+      {% if reveal and item.reservation %}
       <br><small>{{ _("Reserved by %(name)s via %(list)s", name=item.reservation.reserver_name, list=item.reservation.via_wishlist_name) }}</small>
-      <form method="post" novalidate style="display:inline" action="{{ url_for('admin.reservation_cancel', rid=item.reservation.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="back_uid" value="{{ member.id }}">
-        {% if own %}<input type="hidden" name="reveal" value="1">{% endif %}
-        <button type="submit" class="secondary outline">{{ _("Cancel reservation") }}</button>
-      </form>
+      {{ reservation_action(item.reservation, "cancel", _("Cancel reservation")) }}
       {% endif %}
     </li>
     {% endfor %}

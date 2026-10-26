@@ -122,4 +122,5 @@ def catalog_mailer(monkeypatch, mailer):
     """Catalog functions look up the mailer via the Flask app; tests that call them directly
     (outside a request) get the recording mailer through this."""
     monkeypatch.setattr("wishlist.catalog.get_mailer", lambda: mailer)
+    monkeypatch.setattr("wishlist.catalog.get_base_url", lambda: "https://wish.example")
     return mailer

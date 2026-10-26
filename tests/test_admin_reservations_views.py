@@ -28,78 +28,96 @@ def member(db):
     return make_user(db, "Ola", "ola@example.com")[0]
 
 
-def test_admin_sees_member_reserver(admin_client, db, member):
-    _reserved(db, member)
-    r = admin_client.get(f"/admin/members/{member.id}")
+def _assert_hidden(r, *secrets):
     text = r.get_data(as_text=True)
-    assert "Mom" in text and "Birthday" in text and "Cancel reservation" in text
+    for secret in secrets:
+        assert secret not in text
+    assert "reserved by" not in text.lower() and "cancel reservation" not in text.lower()
+    return text
 
 
-def test_admin_own_lists_hidden_until_reveal(admin_client, db):
-    admin = _admin(db)
-    _reserved(db, admin)
-    r = admin_client.get(f"/admin/members/{admin.id}")
+def _assert_revealed(r):
     text = r.get_data(as_text=True)
-    assert "Mom" not in text and "reserved" not in text.lower()
-    assert f"/admin/members/{admin.id}?reveal=1" in text
-    assert "no-store" not in r.headers.get("Cache-Control", "")
-    r = admin_client.get(f"/admin/members/{admin.id}?reveal=1")
-    text = r.get_data(as_text=True)
-    assert "Mom" in text
     assert 'hx-history="false"' in text
     assert r.headers["Cache-Control"] == "no-store"
+    return text
 
 
-def test_admin_index_hides_own_warnings(admin_client, db, member):
+@pytest.mark.parametrize("whose", ["member", "admin"])
+def test_member_page_hidden_until_reveal(admin_client, db, member, whose):
+    owner = member if whose == "member" else _admin(db)
+    _reserved(db, owner)
+    r = admin_client.get(f"/admin/members/{owner.id}")
+    text = _assert_hidden(r, "Mom")
+    assert "Birthday" in text  # lists and items are still shown
+    assert f"/admin/members/{owner.id}?reveal=1" in text
+    assert "no-store" not in r.headers.get("Cache-Control", "")
+    text = _assert_revealed(admin_client.get(f"/admin/members/{owner.id}?reveal=1"))
+    assert "Mom" in text and "Cancel reservation" in text
+
+
+def test_reveal_is_per_member(admin_client, db, member):
+    _reserved(db, member, "TheirGift")
+    other = make_user(db, "Pat", "pat@example.com")[0]
+    _reserved(db, other, "PatGift")
+    text = admin_client.get(f"/admin/members/{member.id}?reveal=1").get_data(as_text=True)
+    assert "Mom" in text and "PatGift" not in text
+
+
+def test_index_shows_only_neutral_marker(admin_client, db, member):
     admin = _admin(db)
     mine, _ = _reserved(db, admin, "MyGift")
     theirs, _ = _reserved(db, member, "TheirGift")
     delete_item(db, mine)
     delete_item(db, theirs)
-    text = admin_client.get("/admin/").get_data(as_text=True)
-    assert "TheirGift" in text and "Mom" in text and "MyGift" not in text
-    r = admin_client.get("/admin/?reveal=1")
-    assert "MyGift" in r.get_data(as_text=True)
-    assert 'hx-history="false"' in r.get_data(as_text=True)
-    assert r.headers["Cache-Control"] == "no-store"
+    r = admin_client.get("/admin/")
+    text = _assert_hidden(r, "Mom", "MyGift", "TheirGift", "Birthday")
+    assert "Show reservations" not in text
+    assert text.count("Needs attention") == 1  # the member's row, not the admin's own
+    row = text[text.index(f"/admin/members/{member.id}"):]
+    assert row.index("Needs attention") < row.index("</tr>")
+
+
+def test_index_has_no_marker_without_orphans(admin_client, db, member):
+    _reserved(db, member)
+    assert "Needs attention" not in admin_client.get("/admin/").get_data(as_text=True)
+
+
+def test_member_page_warnings_only_when_revealed(admin_client, db, member):
+    item, _ = _reserved(db, member, "TheirGift")
+    delete_item(db, item)
+    text = _assert_hidden(admin_client.get(f"/admin/members/{member.id}"), "Mom", "TheirGift")
+    assert "needs your attention" in text
+    text = _assert_revealed(admin_client.get(f"/admin/members/{member.id}?reveal=1"))
+    assert "TheirGift" in text and "Mom" in text and "Dismiss warning" in text
 
 
 def test_index_links_member_rows(admin_client, member):
     assert f"/admin/members/{member.id}" in admin_client.get("/admin/").get_data(as_text=True)
 
 
-def test_cancel_others_reservation_without_reveal(admin_client, db, member):
-    item, _ = _reserved(db, member)
-    r = admin_client.post(
-        f"/admin/reservations/{item.reservation.id}/cancel", data={"back_uid": member.id}
-    )
-    assert r.status_code == 302 and r.headers["Location"] == f"/admin/members/{member.id}"
-    assert db.query(Reservation).count() == 0
-
-
-def test_own_cancel_and_dismiss_need_reveal(admin_client, db):
-    admin = _admin(db)
-    item, _ = _reserved(db, admin)
+@pytest.mark.parametrize("whose", ["member", "admin"])
+def test_cancel_and_dismiss_need_reveal(admin_client, db, member, whose):
+    owner = member if whose == "member" else _admin(db)
+    item, _ = _reserved(db, owner)
     delete_item(db, item)
     rid = db.query(Reservation).one().id
     for action in ("cancel", "dismiss"):
-        assert admin_client.post(f"/admin/reservations/{rid}/{action}").status_code == 404
+        assert admin_client.post(
+            f"/admin/reservations/{rid}/{action}", data={"back_uid": owner.id}
+        ).status_code == 404
     db.expire_all()
     assert db.query(Reservation).one().warning_dismissed_at is None
-    r = admin_client.post(f"/admin/reservations/{rid}/dismiss", data={"reveal": "1"})
-    assert r.headers["Location"] == "/admin/?reveal=1"
+    r = admin_client.post(
+        f"/admin/reservations/{rid}/dismiss", data={"reveal": "1", "back_uid": owner.id}
+    )
+    assert r.headers["Location"] == f"/admin/members/{owner.id}?reveal=1"
     db.expire_all()
     assert db.query(Reservation).one().warning_dismissed_at is not None
-    r = admin_client.post(f"/admin/reservations/{rid}/cancel", data={"reveal": "1"})
+    r = admin_client.post(
+        f"/admin/reservations/{rid}/cancel", data={"reveal": "1", "back_uid": owner.id}
+    )
     assert r.status_code == 302 and db.query(Reservation).count() == 0
-
-
-def test_dismiss_other_redirects_to_index(admin_client, db, member):
-    item, _ = _reserved(db, member)
-    delete_item(db, item)
-    rid = db.query(Reservation).one().id
-    r = admin_client.post(f"/admin/reservations/{rid}/dismiss")
-    assert r.headers["Location"] == "/admin/"
 
 
 def test_non_admin_gets_404(client, db, member):

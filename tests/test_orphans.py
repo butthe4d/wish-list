@@ -19,6 +19,7 @@ from wishlist.reservations import (
     dismiss_warning,
     notify_orphan,
     orphaned_reservations,
+    owners_needing_attention,
     reserve,
 )
 
@@ -48,16 +49,27 @@ def _reserved(db, owner, *, lists=1):
 def test_soft_deleted_reserved_item_warns_and_emails_admin(db, member, admin, mailer):
     item, _ = _reserved(db, member)
     delete_item(db, item)
-    assert [r.reserver_name for r in orphaned_reservations(db, admin, reveal_own=False)] == ["Mom"]
+    assert [r.reserver_name for r in orphaned_reservations(db, member)] == ["Mom"]
+    assert owners_needing_attention(db, admin) == {member.id}
     assert len(mailer.sent) == 1
     assert mailer.sent[0][0] == admin.email
-    assert "Mom" in mailer.sent[0][2]
+
+
+def test_orphan_email_is_neutral_and_links_member_page(db, member, admin, mailer):
+    item, (wl,) = _reserved(db, member)
+    delete_item(db, item)
+    (to, subject, body), = mailer.sent
+    text = subject + body
+    assert "Ola" in text
+    assert f"https://wish.example/admin/members/{member.id}" in body
+    for secret in ("Mom", "Lamp", wl.name):
+        assert secret not in text
 
 
 def test_removed_from_last_list_warns(db, member, admin, mailer):
     item, (wl,) = _reserved(db, member)
     remove_item_from_wishlist(db, wl, item)
-    assert len(orphaned_reservations(db, admin, reveal_own=False)) == 1
+    assert len(orphaned_reservations(db, member)) == 1
     assert len(mailer.sent) == 1
 
 
@@ -70,22 +82,22 @@ def test_update_removing_from_all_lists_warns(db, member, admin, mailer):
 def test_delete_wishlist_warns_for_each_orphaned_item(db, member, admin, mailer):
     item, (wl,) = _reserved(db, member)
     delete_wishlist(db, wl)
-    assert len(orphaned_reservations(db, admin, reveal_own=False)) == 1
+    assert len(orphaned_reservations(db, member)) == 1
     assert len(mailer.sent) == 1
 
 
 def test_still_in_other_list_no_warning(db, member, admin, mailer):
     item, (wl1, wl2) = _reserved(db, member, lists=2)
     remove_item_from_wishlist(db, wl1, item)
-    assert orphaned_reservations(db, admin, reveal_own=False) == []
+    assert orphaned_reservations(db, member) == []
     assert mailer.sent == []
 
 
 def test_admin_own_item_hidden_and_no_email(db, admin, mailer):
     item, _ = _reserved(db, admin)
     delete_item(db, item)
-    assert orphaned_reservations(db, admin, reveal_own=False) == []
-    assert len(orphaned_reservations(db, admin, reveal_own=True)) == 1
+    assert owners_needing_attention(db, admin) == set()
+    assert len(orphaned_reservations(db, admin)) == 1
     assert mailer.sent == []
 
 
@@ -100,7 +112,7 @@ def test_delivery_error_is_logged_not_raised(db, member, admin, caplog):
     item, _ = _reserved(db, member)
     delete_item(db, item)
     caplog.set_level(logging.WARNING)
-    notify_orphan(db, item, FailingMailer(), was_orphaned=False)
+    notify_orphan(db, item, FailingMailer(), was_orphaned=False, base_url="https://wish.example")
     assert "notification" in caplog.text
     assert "Mom" not in caplog.text
 
@@ -124,8 +136,9 @@ def test_cancel_by_admin_keeps_live_item(db, member):
 def test_dismiss_hides_warning(db, member, admin):
     item, _ = _reserved(db, member)
     delete_item(db, item)
-    dismiss_warning(db, orphaned_reservations(db, admin, reveal_own=False)[0])
-    assert orphaned_reservations(db, admin, reveal_own=False) == []
+    dismiss_warning(db, orphaned_reservations(db, member)[0])
+    assert orphaned_reservations(db, member) == []
+    assert owners_needing_attention(db, admin) == set()
 
 
 def test_no_further_email_once_already_orphaned(db, member, admin, mailer):
@@ -164,23 +177,23 @@ def test_dismissed_warning_does_not_hide_a_second_orphaning(db, member, admin, m
     item, (wl,) = _reserved(db, member)
     remove_item_from_wishlist(db, wl, item)
     assert len(mailer.sent) == 1
-    (r,) = orphaned_reservations(db, admin, reveal_own=False)
+    (r,) = orphaned_reservations(db, member)
     dismiss_warning(db, r)
-    assert orphaned_reservations(db, admin, reveal_own=False) == []
+    assert orphaned_reservations(db, member) == []
 
     add_items_to_wishlist(db, wl, [item.id])  # regains a list: no longer orphaned
     assert db.get(Reservation, r.id).warning_dismissed_at is None
     delete_item(db, item)  # orphaned again
 
     assert len(mailer.sent) == 2
-    assert len(orphaned_reservations(db, admin, reveal_own=False)) == 1
+    assert len(orphaned_reservations(db, member)) == 1
 
 
 def test_update_item_regaining_a_list_resets_dismissal(db, member, admin, mailer):
     item, (wl,) = _reserved(db, member)
     remove_item_from_wishlist(db, wl, item)
-    dismiss_warning(db, orphaned_reservations(db, admin, reveal_own=False)[0])
+    dismiss_warning(db, orphaned_reservations(db, member)[0])
     update_item(db, item, name="Lamp", description=None, link=None, wishlist_ids=[wl.id])
     update_item(db, item, name="Lamp", description=None, link=None, wishlist_ids=[])
     assert len(mailer.sent) == 2
-    assert len(orphaned_reservations(db, admin, reveal_own=False)) == 1
+    assert len(orphaned_reservations(db, member)) == 1

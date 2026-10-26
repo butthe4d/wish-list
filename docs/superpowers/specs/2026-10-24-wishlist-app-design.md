@@ -82,12 +82,12 @@ tooling for a handful of pages.
   is issued.
 - **Reservations:** anyone with a shared-list link can reserve an item by
   entering their name. Other viewers see "reserved".
-- **Admin visibility:** admin can see who reserved items. For the **admin's own
-  lists**, reservations stay hidden even in the admin view until the admin
-  explicitly clicks "Show reservations". Before that click, the admin view of
-  their own lists shows **no reservation state at all** (not even "reserved"),
-  only the same view a member gets. The reveal lasts for that one page load
-  (builder's call). The admin's normal member page never shows them.
+- **Admin visibility** (revised 2026-10-26, user's option B): every member's
+  reservations, the admin's own included, stay hidden in the admin view until
+  the admin clicks "Show reservations" on that one member's page. Before that
+  click the member page shows **no reservation state at all** (not even
+  "reserved"). The reveal covers only that member and lasts for that one page
+  load. The admin's normal member page never shows them.
 - **Email:** no self-hosted SMTP server. Use an existing provider.
 - **Stack:** option 1 above.
 
@@ -163,10 +163,9 @@ tooling for a handful of pages.
   (with "Cancel").
 - **Admin: members**: list, create (name, email, language,
   admin flag), edit, delete, change key, resend link.
-- **Admin: member's lists**: view any member's lists and items with reserver
-  names and the ability to cancel a reservation. For the admin's own lists,
-  all reservation info (state and names) is hidden behind an explicit "Show
-  reservations" action, as described above.
+- **Admin: member's lists**: view any member's lists and items. Reserver
+  names, "Cancel reservation" and that member's warnings appear only after an
+  explicit "Show reservations" on that page, as described above.
 - **Language switcher** in the page footer.
 
 ### Reserved items that the owner deletes or removes (decided by the user)
@@ -176,14 +175,18 @@ already bought, or remove it from the list it was reserved through.
 
 - Deleting an item is a **soft delete**: it disappears for the owner and for
   guests, but if it has an active reservation it stays in the database.
-- The admin's members page shows a **warning** for each such item ("deleted by
-  <owner>, reserved by <name> via <list>"), with actions to dismiss the warning
-  or cancel the reservation. Deleted items with no reservation can be purged
-  (builder's call).
+- The owner's member page in admin shows a **warning** for each such item
+  ("deleted by <owner>, reserved by <name> via <list>"), with actions to dismiss
+  the warning or cancel the reservation, but only once revealed with "Show
+  reservations". Unrevealed, the admin home page shows only a neutral "Needs
+  attention" marker next to that member, and the member page a neutral notice.
+  Deleted items with no reservation can be purged (builder's call).
 - The app also **emails the admin** when this happens, if email is configured.
-- **Exception:** when the deleted item belongs to the admin, the warning and
-  email must not reveal the reservation. They appear only behind the same
-  "Show reservations" action (builder's call; protects the surprise).
+  The email is neutral (revised 2026-10-26): it names the member and links their
+  admin page, never the item or the reserver.
+- **Exception:** when the deleted item belongs to the admin, there is no email
+  and no marker; the warning appears only behind "Show reservations" on their
+  own member page (protects the surprise).
 - Removing a reserved item from a list keeps the reservation, because it belongs
   to the item. If the item is now in no shared list, the admin gets the same
   warning. A deleted wishlist leaves the reservation's "via" field pointing at

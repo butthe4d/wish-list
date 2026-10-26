@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
+from flask import current_app
+
 LANGUAGE_NAMES: dict[str, str] = {"en": "English", "pl": "Polski"}
 SUPPORTED_LANGUAGES: tuple[str, ...] = tuple(LANGUAGE_NAMES)
 SMTP_SECURITY_MODES = ("starttls", "ssl", "none")
@@ -87,3 +89,8 @@ class Config:
             gsmservice_token=get("GSMSERVICE_TOKEN"),
             gsmservice_sender=get("GSMSERVICE_SENDER"),
         )
+
+
+def get_base_url() -> str:
+    """BASE_URL of the running app (needs an app context)."""
+    return current_app.config["WISHLIST"].base_url

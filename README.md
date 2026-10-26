@@ -84,7 +84,7 @@ The app trusts one level of `X-Forwarded-For/Proto/Host` headers from the proxy.
 
 - **Personal links are passwords.** Anyone holding a member's link is that member. There is no self-service recovery: if someone loses their link, an admin uses "Change key and send new link" on the member.
 - **List owners never see reservations on their own items**, in member views and in share views. Note that someone who opens their own share link while logged out, or in another browser, is a visitor like any other and sees the reservation state of that list.
-- **Admins** can reveal reservations of their own items only with the explicit "Show reservations" button. The reveal lasts for that one page load.
+- **Admins** see no reservations in the admin pages until they click "Show reservations" on one member's page; the reveal covers only that member and lasts for that one page load. When a reserved item is deleted, the admin home page shows a neutral "Needs attention" marker next to the member and admins get a neutral email (member name and link only). An admin's own items never trigger the marker or the email.
 - Keys are stored only as SHA-256 hashes, and the gunicorn access log replaces keys in `/u/<key>` and `/s/<key>` with `***`.
 - **Sharing caps:** each member can send at most 20 SMS and 50 emails per 24 hours.
 

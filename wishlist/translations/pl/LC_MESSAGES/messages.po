@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-26 03:15-0400\n"
+"POT-Creation-Date: 2026-10-26 03:20-0400\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pl\n"
@@ -23,27 +23,27 @@ msgstr ""
 msgid "This page expired, please try again."
 msgstr "Ta strona wygasła, spróbuj ponownie."
 
-#: wishlist/catalog.py:33 wishlist/catalog.py:37
+#: wishlist/catalog.py:38 wishlist/catalog.py:42
 msgid "The link must start with http:// or https://."
 msgstr "Link musi zaczynać się od http:// lub https://."
 
-#: wishlist/catalog.py:43
+#: wishlist/catalog.py:48
 msgid "The link is not a valid address."
 msgstr "Link nie jest poprawnym adresem."
 
-#: wishlist/catalog.py:45
+#: wishlist/catalog.py:50
 msgid "The link is too long."
 msgstr "Link jest zbyt długi."
 
-#: wishlist/catalog.py:52 wishlist/catalog.py:140 wishlist/members.py:28
+#: wishlist/catalog.py:57 wishlist/catalog.py:145 wishlist/members.py:28
 msgid "Name is required."
 msgstr "Nazwa jest wymagana."
 
-#: wishlist/catalog.py:54 wishlist/catalog.py:142 wishlist/reservations.py:33
+#: wishlist/catalog.py:59 wishlist/catalog.py:147 wishlist/reservations.py:33
 msgid "Name is too long."
 msgstr "Nazwa jest zbyt długa."
 
-#: wishlist/catalog.py:57 wishlist/catalog.py:145
+#: wishlist/catalog.py:62 wishlist/catalog.py:150
 msgid "Description is too long."
 msgstr "Opis jest zbyt długi."
 
@@ -124,25 +124,25 @@ msgstr ""
 msgid "%(name)s shared the wishlist \"%(list)s\" with you: %(link)s"
 msgstr "%(name)s udostępnia Ci listę życzeń „%(list)s”: %(link)s"
 
-#: wishlist/messages.py:57
-#, python-format
-msgid "A reserved item was changed: %(item)s"
-msgstr "Zarezerwowana pozycja została zmieniona: %(item)s"
-
 #: wishlist/messages.py:59
+#, python-format
+msgid "Something on %(owner)s's lists needs your attention"
+msgstr "Coś na listach użytkownika %(owner)s wymaga Twojej uwagi"
+
+#: wishlist/messages.py:61
 #, python-format
 msgid ""
 "Hi %(admin)s,\n"
 "\n"
-"%(owner)s changed or removed \"%(item)s\", which %(reserver)s had "
-"reserved via the list \"%(list)s\". You may want to let %(reserver)s "
-"know."
+"An item on %(owner)s's lists that someone had reserved was changed or "
+"removed. Open %(link)s and click \"Show reservations\" to see the "
+"details."
 msgstr ""
 "Cześć %(admin)s,\n"
 "\n"
-"%(owner)s zmienia lub usuwa pozycję „%(item)s”, którą %(reserver)s "
-"zarezerwował(a) przez listę „%(list)s”. Warto dać znać osobie "
-"%(reserver)s."
+"Zarezerwowana przez kogoś pozycja na listach użytkownika %(owner)s "
+"została zmieniona lub usunięta. Otwórz %(link)s i kliknij „Pokaż "
+"rezerwacje”, aby zobaczyć szczegóły."
 
 #: wishlist/reservations.py:31
 msgid "Please enter your name."
@@ -170,8 +170,8 @@ msgstr "Użyj formatu międzynarodowego, np. +48600100200."
 msgid "Wishlist"
 msgstr "Lista życzeń"
 
-#: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:5
-#: wishlist/templates/admin/index.html:37
+#: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
+#: wishlist/templates/admin/index.html:12
 #: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:18
 msgid "Admin"
 msgstr "Administrator"
@@ -227,11 +227,11 @@ msgstr "Dodaj pozycję"
 msgid "Store link"
 msgstr "Link do sklepu"
 
-#: wishlist/templates/admin/index.html:48 wishlist/templates/home.html:43
+#: wishlist/templates/admin/index.html:26 wishlist/templates/home.html:43
 msgid "Edit"
 msgstr "Edytuj"
 
-#: wishlist/templates/admin/index.html:60 wishlist/templates/home.html:46
+#: wishlist/templates/admin/index.html:38 wishlist/templates/home.html:46
 msgid "Delete"
 msgstr "Usuń"
 
@@ -247,7 +247,7 @@ msgstr "Edytuj pozycję"
 msgid "New item"
 msgstr "Nowa pozycja"
 
-#: wishlist/templates/admin/index.html:37
+#: wishlist/templates/admin/index.html:12
 #: wishlist/templates/admin/member_form.html:8
 #: wishlist/templates/item_form.html:8
 msgid "Name"
@@ -292,7 +292,7 @@ msgstr "Pozycje"
 msgid "Remove from list"
 msgstr "Usuń z listy"
 
-#: wishlist/templates/admin/member_lists.html:33
+#: wishlist/templates/admin/member_lists.html:55
 #: wishlist/templates/list_owner.html:25 wishlist/templates/shared_list.html:40
 msgid "This list has no items yet."
 msgstr "Ta lista nie ma jeszcze żadnych pozycji."
@@ -412,66 +412,41 @@ msgstr "Witaj"
 msgid "Please open the personal link you received to use this wishlist."
 msgstr "Otwórz otrzymany osobisty link, aby korzystać z tej listy życzeń."
 
-#: wishlist/templates/admin/index.html:8
-msgid "Warnings"
-msgstr "Ostrzeżenia"
-
-#: wishlist/templates/admin/index.html:12
-#, python-format
-msgid "%(item)s — deleted/removed by %(owner)s, reserved by %(name)s via %(list)s"
-msgstr ""
-"%(item)s — usunięte/wyjęte przez %(owner)s, zarezerwowane przez %(name)s "
-"przez listę %(list)s"
-
-#: wishlist/templates/admin/index.html:16
-msgid "Dismiss warning"
-msgstr "Odrzuć ostrzeżenie"
-
-#: wishlist/templates/admin/index.html:16
-#: wishlist/templates/admin/member_lists.html:26
-msgid "Cancel reservation"
-msgstr "Anuluj rezerwację"
-
-#: wishlist/templates/admin/index.html:25
-msgid "No warnings."
-msgstr "Brak ostrzeżeń."
-
-#: wishlist/templates/admin/index.html:27
-#: wishlist/templates/admin/member_lists.html:9
-msgid "Show reservations"
-msgstr "Pokaż rezerwacje"
-
-#: wishlist/templates/admin/index.html:32
+#: wishlist/templates/admin/index.html:7
 msgid "Members"
 msgstr "Członkowie"
 
-#: wishlist/templates/admin/index.html:33
+#: wishlist/templates/admin/index.html:8
 msgid "Add member"
 msgstr "Dodaj członka"
 
-#: wishlist/templates/admin/index.html:37
+#: wishlist/templates/admin/index.html:12
 #: wishlist/templates/admin/member_form.html:12
 msgid "Email"
 msgstr "E-mail"
 
-#: wishlist/templates/admin/index.html:37
+#: wishlist/templates/admin/index.html:12
 #: wishlist/templates/admin/member_form.html:16
 msgid "Language"
 msgstr "Język"
 
-#: wishlist/templates/admin/index.html:46
+#: wishlist/templates/admin/index.html:20
+msgid "Needs attention"
+msgstr "Wymaga uwagi"
+
+#: wishlist/templates/admin/index.html:24
 msgid "Yes"
 msgstr "Tak"
 
-#: wishlist/templates/admin/index.html:46
+#: wishlist/templates/admin/index.html:24
 msgid "No"
 msgstr "Nie"
 
-#: wishlist/templates/admin/index.html:51
+#: wishlist/templates/admin/index.html:29
 msgid "Change key and send new link"
 msgstr "Zmień klucz i wyślij nowy link"
 
-#: wishlist/templates/admin/index.html:58
+#: wishlist/templates/admin/index.html:36
 msgid "Also delete their items and lists"
 msgstr "Usuń także ich pozycje i listy"
 
@@ -518,32 +493,68 @@ msgstr "Edytuj członka"
 msgid "New member"
 msgstr "Nowy członek"
 
-#: wishlist/templates/admin/member_lists.html:21
+#: wishlist/templates/admin/member_lists.html:20
+msgid ""
+"Something on this member's lists needs your attention. Click \"Show "
+"reservations\" to see it."
+msgstr ""
+"Coś na listach tego użytkownika wymaga Twojej uwagi. Kliknij „Pokaż "
+"rezerwacje”, aby to zobaczyć."
+
+#: wishlist/templates/admin/member_lists.html:22
+msgid "Show reservations"
+msgstr "Pokaż rezerwacje"
+
+#: wishlist/templates/admin/member_lists.html:25
+msgid "Warnings"
+msgstr "Ostrzeżenia"
+
+#: wishlist/templates/admin/member_lists.html:29
+#, python-format
+msgid "%(item)s — deleted/removed by %(owner)s, reserved by %(name)s via %(list)s"
+msgstr ""
+"%(item)s — usunięte/wyjęte przez %(owner)s, zarezerwowane przez %(name)s "
+"przez listę %(list)s"
+
+#: wishlist/templates/admin/member_lists.html:32
+msgid "Dismiss warning"
+msgstr "Odrzuć ostrzeżenie"
+
+#: wishlist/templates/admin/member_lists.html:33
+#: wishlist/templates/admin/member_lists.html:49
+msgid "Cancel reservation"
+msgstr "Anuluj rezerwację"
+
+#: wishlist/templates/admin/member_lists.html:35
+msgid "No warnings."
+msgstr "Brak ostrzeżeń."
+
+#: wishlist/templates/admin/member_lists.html:48
 #, python-format
 msgid "Reserved by %(name)s via %(list)s"
 msgstr "Zarezerwowane przez %(name)s przez listę %(list)s"
 
-#: wishlist/templates/admin/member_lists.html:37
+#: wishlist/templates/admin/member_lists.html:59
 msgid "No lists yet."
 msgstr "Brak list."
 
-#: wishlist/views/admin.py:101
+#: wishlist/views/admin.py:98
 msgid "Reservation cancelled."
 msgstr "Rezerwacja anulowana."
 
-#: wishlist/views/admin.py:110
+#: wishlist/views/admin.py:107
 msgid "Warning dismissed."
 msgstr "Ostrzeżenie odrzucone."
 
-#: wishlist/views/admin.py:151
+#: wishlist/views/admin.py:148
 msgid "Saved."
 msgstr "Zapisano."
 
-#: wishlist/views/admin.py:165
+#: wishlist/views/admin.py:162
 msgid "Tick the confirmation box to delete a member."
 msgstr "Zaznacz pole potwierdzenia, aby usunąć członka."
 
-#: wishlist/views/admin.py:172
+#: wishlist/views/admin.py:169
 msgid "Member deleted."
 msgstr "Członek został usunięty."
 
@@ -578,4 +589,22 @@ msgstr "Przepraszamy, ktoś właśnie zarezerwował ten prezent."
 
 #~ msgid "Admin (placeholder)"
 #~ msgstr "Administracja (tymczasowa)"
+
+#~ msgid "A reserved item was changed: %(item)s"
+#~ msgstr "Zarezerwowana pozycja została zmieniona: %(item)s"
+
+#~ msgid ""
+#~ "Hi %(admin)s,\n"
+#~ "\n"
+#~ "%(owner)s changed or removed \"%(item)s\", "
+#~ "which %(reserver)s had reserved via the"
+#~ " list \"%(list)s\". You may want to"
+#~ " let %(reserver)s know."
+#~ msgstr ""
+#~ "Cześć %(admin)s,\n"
+#~ "\n"
+#~ "%(owner)s zmienia lub usuwa pozycję "
+#~ "„%(item)s”, którą %(reserver)s zarezerwował(a) "
+#~ "przez listę „%(list)s”. Warto dać znać"
+#~ " osobie %(reserver)s."
 

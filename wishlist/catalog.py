@@ -9,6 +9,7 @@ from flask_babel import gettext as _
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .config import get_base_url
 from .errors import ValidationError
 from .models import Item, User, Wishlist, utcnow
 from .notify import get_mailer
@@ -23,6 +24,10 @@ LINK_MAX = 2000
 # "scheme:" that is not "host:port"
 _OPAQUE_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:(?!\d+(/|$))")
 
+
+
+def _notify(s: Session, item: Item, was_orphaned: bool) -> None:
+    notify_orphan(s, item, get_mailer(), was_orphaned=was_orphaned, base_url=get_base_url())
 
 def normalize_link(raw: str | None) -> str | None:
     raw = (raw or "").strip()
@@ -111,7 +116,7 @@ def update_item(
     item.name, item.description, item.link = name, description, link
     item.updated_at = utcnow()
     s.commit()
-    notify_orphan(s, item, get_mailer(), was_orphaned=was)
+    _notify(s, item, was)
     return item
 
 
@@ -121,7 +126,7 @@ def delete_item(s: Session, item: Item) -> None:
         item.deleted_at = utcnow()
         item.wishlists = []
         s.commit()
-        notify_orphan(s, item, get_mailer(), was_orphaned=was)
+        _notify(s, item, was)
     else:
         s.delete(item)
         s.commit()
@@ -168,7 +173,7 @@ def delete_wishlist(s: Session, wl: Wishlist) -> None:
     s.delete(wl)
     s.commit()
     for item in items:
-        notify_orphan(s, item, get_mailer(), was_orphaned=before[item.id])
+        _notify(s, item, before[item.id])
 
 
 def add_items_to_wishlist(s: Session, wl: Wishlist, item_ids: Iterable[int]) -> None:
@@ -196,7 +201,7 @@ def remove_item_from_wishlist(s: Session, wl: Wishlist, item: Item) -> None:
     if item in wl.items:
         wl.items.remove(item)
     s.commit()
-    notify_orphan(s, item, get_mailer(), was_orphaned=was)
+    _notify(s, item, was)
 
 
 def get_owned_wishlist(s: Session, user: User, wishlist_id: int) -> Wishlist:

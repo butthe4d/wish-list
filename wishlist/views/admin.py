@@ -41,8 +41,8 @@ def _render_link_once(user, key):
 
 
 def _page(template, reveal_shown: bool, **ctx):
-    """Pages that show the admin's own reservation info must not be cached by the browser
-    or by htmx history."""
+    """Pages that show reservation info must not be cached by the browser or by htmx
+    history."""
     response = make_response(render_template(template, reveal=reveal_shown, **ctx))
     if reveal_shown:
         response.headers["Cache-Control"] = "no-store"
@@ -53,44 +53,41 @@ def _page(template, reveal_shown: bool, **ctx):
 @admin_required
 def index():
     s = get_session()
-    me = current_user()
-    reveal = request.args.get("reveal") == "1"
     users = s.query(User).order_by(User.name, User.id).all()
-    warnings = reservations.orphaned_reservations(s, me, reveal_own=reveal)
     return _page(
-        "admin/index.html", reveal, members=users, me=me, warnings=warnings
+        "admin/index.html", False, members=users, me=current_user(),
+        needs_attention=reservations.owners_needing_attention(s, current_user()),
     )
 
 
 @bp.get("/members/<int:uid>")
 @admin_required
 def member_lists(uid):
+    """Reservations of any member, the admin included, stay hidden until the admin
+    explicitly reveals them for this one member and this one page load."""
+    s = get_session()
     member = _get_member(uid)
-    me = current_user()
-    own = member.id == me.id
     reveal = request.args.get("reveal") == "1"
-    show_state = not own or reveal
     return _page(
-        "admin/member_lists.html", own and reveal,
-        member=member, own=own, show_state=show_state,
+        "admin/member_lists.html", reveal,
+        member=member,
+        needs_attention=member.id in reservations.owners_needing_attention(s, current_user()),
+        warnings=reservations.orphaned_reservations(s, member) if reveal else [],
     )
 
 
 def _get_reservation(rid: int) -> Reservation:
     r = get_session().get(Reservation, rid)
-    if r is None:
-        abort(404)
-    if r.item.owner_id == current_user().id and request.form.get("reveal") != "1":
+    if r is None or request.form.get("reveal") != "1":
         abort(404)
     return r
 
 
-def _back(reveal: bool):
+def _back():
     uid = request.form.get("back_uid", type=int)
-    args = {"reveal": 1} if reveal else {}
     if uid is not None:
-        return redirect(url_for("admin.member_lists", uid=uid, **args))
-    return redirect(url_for("admin.index", **args))
+        return redirect(url_for("admin.member_lists", uid=uid, reveal=1))
+    return redirect(url_for("admin.index"))
 
 
 @bp.post("/reservations/<int:rid>/cancel")
@@ -99,7 +96,7 @@ def reservation_cancel(rid):
     r = _get_reservation(rid)
     reservations.cancel_by_admin(get_session(), r)
     flash(_("Reservation cancelled."))
-    return _back(request.form.get("reveal") == "1")
+    return _back()
 
 
 @bp.post("/reservations/<int:rid>/dismiss")
@@ -108,7 +105,7 @@ def reservation_dismiss(rid):
     r = _get_reservation(rid)
     reservations.dismiss_warning(get_session(), r)
     flash(_("Warning dismissed."))
-    return _back(request.form.get("reveal") == "1")
+    return _back()
 
 
 @bp.route("/members/new", methods=["GET", "POST"])

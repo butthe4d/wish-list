@@ -5,7 +5,7 @@ import re
 from flask_babel import force_locale
 from flask_babel import gettext as _
 
-from .models import Reservation, User, Wishlist
+from .models import User, Wishlist
 
 
 def _one_line(text: str) -> str:
@@ -52,17 +52,16 @@ def share_sms(sharer: User, wl: Wishlist, link: str) -> str:
         )
 
 
-def orphan_email(admin: User, r: Reservation) -> tuple[str, str]:
+def orphan_email(admin: User, owner: User, link: str) -> tuple[str, str]:
+    """Neutral on purpose: no item or reserver names, so the admin only learns details
+    by explicitly revealing that member's reservations."""
     with force_locale(admin.language):
-        subject = _("A reserved item was changed: %(item)s", item=_one_line(r.item.name))
+        subject = _("Something on %(owner)s's lists needs your attention", owner=_one_line(owner.name))
         body = _(
-            "Hi %(admin)s,\n\n%(owner)s changed or removed \"%(item)s\", "
-            "which %(reserver)s had reserved via the list \"%(list)s\". "
-            "You may want to let %(reserver)s know.",
+            "Hi %(admin)s,\n\nAn item on %(owner)s's lists that someone had reserved was "
+            "changed or removed. Open %(link)s and click \"Show reservations\" to see the details.",
             admin=admin.name,
-            owner=r.item.owner.name,
-            item=r.item.name,
-            reserver=r.reserver_name,
-            list=r.via_wishlist_name,
+            owner=owner.name,
+            link=link,
         )
     return subject, body

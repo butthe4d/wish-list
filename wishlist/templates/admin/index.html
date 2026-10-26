@@ -1,32 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Admin") }}{% endblock %}
 {% block content %}
-<div {% if reveal %}hx-history="false"{% endif %}>
 <h1>{{ _("Admin") }}</h1>
-
-<section id="warnings">
-  <h2>{{ _("Warnings") }}</h2>
-  {% for r in warnings %}
-  <article>
-    <p>
-      {{ _("%(item)s — deleted/removed by %(owner)s, reserved by %(name)s via %(list)s",
-           item=r.item.name, owner=r.item.owner.name, name=r.reserver_name, list=r.via_wishlist_name) }}
-    </p>
-    {% set own_item = r.item.owner_id == me.id %}
-    {% for action, label in (("dismiss", _("Dismiss warning")), ("cancel", _("Cancel reservation"))) %}
-    <form method="post" novalidate style="display:inline"
-          action="{{ url_for('admin.reservation_' + action, rid=r.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      {% if own_item %}<input type="hidden" name="reveal" value="1">{% endif %}
-      <button type="submit" class="secondary outline">{{ label }}</button>
-    </form>
-    {% endfor %}
-  </article>
-  {% else %}<p>{{ _("No warnings.") }}</p>{% endfor %}
-  {% if not reveal %}
-  <p><a href="{{ url_for('admin.index', reveal=1) }}" hx-boost="false" role="button" class="secondary outline">{{ _("Show reservations") }}</a></p>
-  {% endif %}
-</section>
 
 <section>
   <h2>{{ _("Members") }}</h2>
@@ -40,7 +15,10 @@
     <tbody>
       {% for m in members %}
       <tr>
-        <td><a href="{{ url_for('admin.member_lists', uid=m.id) }}">{{ m.name }}</a></td>
+        <td>
+          <a href="{{ url_for('admin.member_lists', uid=m.id) }}">{{ m.name }}</a>
+          {% if m.id in needs_attention %}<br><mark>{{ _("Needs attention") }}</mark>{% endif %}
+        </td>
         <td>{{ m.email }}</td>
         <td>{{ m.language }}</td>
         <td>{{ _("Yes") if m.is_admin else _("No") }}</td>
@@ -66,5 +44,4 @@
     </tbody>
   </table>
 </section>
-</div>
 {% endblock %}
