@@ -3,7 +3,7 @@
 {% block content %}
 <h1>{{ _("Edit item") if item else _("New item") }}</h1>
 {% if error %}<p role="alert">{{ error.message }}</p>{% endif %}
-<form method="post">
+<form method="post" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <label>{{ _("Name") }}
     <input type="text" name="name" value="{{ form.get('name', '') }}" maxlength="200" required

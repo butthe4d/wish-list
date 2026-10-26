@@ -15,7 +15,7 @@
   <p>{{ _("You have no lists yet.") }}</p>
   {% endif %}
   {% if error %}<p role="alert">{{ error.message }}</p>{% endif %}
-  <form method="post" action="{{ url_for('member.list_create') }}">
+  <form method="post" novalidate action="{{ url_for('member.list_create') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>{{ _("List name") }}
       <input type="text" name="name" value="{{ form.get('name', '') }}" maxlength="100" required
@@ -41,7 +41,7 @@
       {% if item.description %}<br><small>{{ item.description }}</small>{% endif %}
       <br>
       <a href="{{ url_for('member.item_edit', item_id=item.id) }}">{{ _("Edit") }}</a>
-      <form method="post" action="{{ url_for('member.item_delete', item_id=item.id) }}" style="display:inline">
+      <form method="post" novalidate action="{{ url_for('member.item_delete', item_id=item.id) }}" style="display:inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="secondary outline">{{ _("Delete") }}</button>
       </form>

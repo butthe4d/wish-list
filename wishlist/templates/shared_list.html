@@ -14,7 +14,7 @@
     {% if item.link %}<a href="{{ item.link }}" rel="noopener noreferrer" target="_blank">{{ _("Store link") }}</a>{% endif %}
     {% if item.description %}<br><small>{{ item.description }}</small>{% endif %}
     {% if state == 'available' %}
-    <form method="post" action="{{ url_for('shared.reserve', wl_id=wl.id, item_id=item.id) }}">
+    <form method="post" novalidate action="{{ url_for('shared.reserve', wl_id=wl.id, item_id=item.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if error and error_item_id == item.id %}<p role="alert">{{ error.message }}</p>{% endif %}
       <label>{{ _("Your name") }}
@@ -26,7 +26,7 @@
     </form>
     {% elif state == 'mine' %}
     <p>{{ _("Reserved by you") }}</p>
-    <form method="post" action="{{ url_for('shared.cancel', wl_id=wl.id, item_id=item.id) }}">
+    <form method="post" novalidate action="{{ url_for('shared.cancel', wl_id=wl.id, item_id=item.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="secondary outline">{{ _("Cancel") }}</button>
     </form>

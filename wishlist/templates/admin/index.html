@@ -14,7 +14,7 @@
     </p>
     {% set own_item = r.item.owner_id == me.id %}
     {% for action, label in (("dismiss", _("Dismiss warning")), ("cancel", _("Cancel reservation"))) %}
-    <form method="post" style="display:inline"
+    <form method="post" novalidate style="display:inline"
           action="{{ url_for('admin.reservation_' + action, rid=r.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if own_item %}<input type="hidden" name="reveal" value="1">{% endif %}
@@ -46,12 +46,12 @@
         <td>{{ _("Yes") if m.is_admin else _("No") }}</td>
         <td>
           <a href="{{ url_for('admin.member_edit', uid=m.id) }}">{{ _("Edit") }}</a>
-          <form method="post" hx-boost="false" action="{{ url_for('admin.member_rotate_key', uid=m.id) }}">
+          <form method="post" novalidate hx-boost="false" action="{{ url_for('admin.member_rotate_key', uid=m.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="secondary outline">{{ _("Change key and send new link") }}</button>
           </form>
           {% if m.id != me.id %}
-          <form method="post" action="{{ url_for('admin.member_delete', uid=m.id) }}">
+          <form method="post" novalidate action="{{ url_for('admin.member_delete', uid=m.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>
               <input type="checkbox" name="confirm" value="yes" required>

@@ -3,7 +3,7 @@
 {% block content %}
 <h1>{{ _("Edit member") if member else _("New member") }}</h1>
 {% if error %}<p role="alert">{{ error.message }}</p>{% endif %}
-<form method="post" {% if not member %}hx-boost="false"{% endif %}>
+<form method="post" novalidate {% if not member %}hx-boost="false"{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <label>{{ _("Name") }}
     <input type="text" name="name" value="{{ form.get('name', '') }}" maxlength="100" required

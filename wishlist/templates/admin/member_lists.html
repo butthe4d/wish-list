@@ -19,7 +19,7 @@
       <strong>{{ item.name }}</strong>
       {% if show_state and item.reservation %}
       <br><small>{{ _("Reserved by %(name)s via %(list)s", name=item.reservation.reserver_name, list=item.reservation.via_wishlist_name) }}</small>
-      <form method="post" style="display:inline" action="{{ url_for('admin.reservation_cancel', rid=item.reservation.id) }}">
+      <form method="post" novalidate style="display:inline" action="{{ url_for('admin.reservation_cancel', rid=item.reservation.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="back_uid" value="{{ member.id }}">
         {% if own %}<input type="hidden" name="reveal" value="1">{% endif %}
