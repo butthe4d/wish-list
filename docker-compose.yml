@@ -28,3 +28,7 @@ services:
       # Optional SMS via gsmservice.pl
       # GSMSERVICE_TOKEN: your-token
       # GSMSERVICE_SENDER: Wishlist
+
+      # Optional: networks the server must never fetch item pictures from (comma or space separated).
+      # List your LAN's global IPv6 prefix and your public IPv4/DDNS address; see the README.
+      # FETCH_DENY_CIDRS: "2001:db8:1234::/48, 203.0.113.7/32"

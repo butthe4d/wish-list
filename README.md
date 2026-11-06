@@ -2,7 +2,7 @@
 
 A small, self-hosted wishlist app for a household or a circle of friends. Each member keeps a catalog of items and groups them into lists. Each list can be shared by email or SMS link with anyone, member or not. Visitors reserve items so nobody buys the same gift twice, and the list owner never sees which of their items are reserved, so the surprise stays intact.
 
-Features: personal login links (no passwords), email and optional SMS sharing, English and Polish UI, a single Docker image, SQLite storage.
+Features: personal login links (no passwords), email and optional SMS sharing, item pictures fetched from shop links, a colour theme per list (Classic, Christmas, Birthday), English and Polish UI, a single Docker image, SQLite storage.
 
 ## Quick start
 
@@ -17,7 +17,7 @@ Features: personal login links (no passwords), email and optional SMS sharing, E
 3. Open the printed `Admin link: ...` in your browser. That link is your login, so keep it private. The first admin is created only when the database is empty.
 4. In the admin page, add the other members. Each gets their own personal link, shown on screen and emailed if SMTP is configured.
 
-The database lives in `./data/wishlist.db`. Migrations run automatically at every start. The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
+The database lives in `./data/wishlist.db` and item pictures in `./data/images/`. Migrations run automatically at every start. The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
 
 ## Configuration
 
@@ -30,6 +30,8 @@ All configuration comes from environment variables.
 | `DATABASE_URL` | no | `sqlite:////data/wishlist.db` | SQLAlchemy URL. |
 | `ADMIN_EMAIL` | no | | Email of the first admin, created on first start when no members exist. |
 | `ADMIN_NAME` | no | part of `ADMIN_EMAIL` before `@` | Name of the first admin. |
+| `DATA_DIR` | no | `/data` | Folder for item pictures (`DATA_DIR/images`). Keep it on the same volume as the database. The Docker image expects `/data`. |
+| `FETCH_DENY_CIDRS` | no | | Extra networks the server must never fetch from. See [Pictures](#pictures-and-fetch-protections). |
 | `DEFAULT_LANGUAGE` | no | `en` | `en` or `pl`. Used when neither the member, a cookie nor the browser picks a language. |
 | `SMTP_HOST` | no | | Enables email. Without it, links are shown on screen instead of emailed. |
 | `SMTP_PORT` | no | `587` | |
@@ -71,6 +73,31 @@ SMTP_FROM: you@gmail.com
 
 Phone numbers are entered in international format, for example `+48600100200`; spaces and dashes are ignored.
 
+## Pictures and fetch protections
+
+When a member adds an item with a shop link, the server can look for product pictures on that page and offer up to three to choose from. The member can also paste a direct image URL, or use no picture. The chosen picture is downloaded once, resized (long side at most 800 px), re-encoded as a JPEG with metadata stripped, and stored under `DATA_DIR/images` with a random name. Guests' browsers never contact the shop or any third party: pictures (and fonts) are served by the app itself. A picture is served only while its item exists, and is deleted with the item or its member. Candidate pictures that were not chosen are kept in `DATA_DIR/images/tmp` and removed after about an hour.
+
+Because the server makes requests to addresses members type in, it is restricted:
+
+- only `http` and `https`, only ports 80 and 443;
+- loopback, private, link-local and other non-public addresses are refused, checked again on every redirect (at most 3);
+- pages are limited to 2 MB and images to 10 MB; 8 s per request and 20 s in total, and a picture search stops after 20 s;
+- each member can run 30 picture searches per hour (counted per gunicorn worker, so with several workers the effective limit is a multiple).
+
+### FETCH_DENY_CIDRS
+
+Private ranges are blocked automatically, but some of your own addresses look public to the app: the global IPv6 prefix of a LAN with native IPv6 (every device, including your router and other services, has an address in it), and the public IPv4 address or DDNS name of your home connection (with hairpin NAT it reaches your router and the services behind it from inside). A link pointing at them would let a member make the server talk to your internal services. List them in `FETCH_DENY_CIDRS`, comma or space separated:
+
+```yaml
+FETCH_DENY_CIDRS: "2001:db8:1234::/48, 203.0.113.7/32"
+```
+
+Here `2001:db8:1234::/48` is the LAN's IPv6 prefix and `203.0.113.7` is the household's public IPv4 address. If you use a DDNS name, list the address it currently resolves to. A malformed value stops the app from starting.
+
+## Themes
+
+The owner of a list picks its theme on the list page: Classic, Christmas or Birthday. The theme colours the list for its owner and for guests opening the share link. An admin sets the default theme for new lists and the design on the admin page (currently only "A — tiles"). Fonts (Source Sans 3) are bundled with the app.
+
 ## Exposing the app
 
 The app speaks plain HTTP on port 8000 and expects TLS to be handled in front of it. Set `BASE_URL` to the public HTTPS URL, because links in emails and SMS are built from it, never from the request.
@@ -90,11 +117,14 @@ The app trusts one level of `X-Forwarded-For/Proto/Host` headers from the proxy.
 
 ## Backup
 
-Everything is in one SQLite file. Either stop the container and copy `data/wishlist.db`, or take a consistent copy while it runs:
+The data is the whole `data` folder: the SQLite database `wishlist.db` and the pictures in `images/`. Stop the container and copy the folder. For a copy while it runs, take a consistent database copy and copy `images/` alongside it:
 
 ```sh
 sqlite3 data/wishlist.db ".backup 'wishlist-backup.db'"
+cp -r data/images wishlist-backup-images
 ```
+
+A database restored without its pictures works, but those items show no picture.
 
 Keep your `SECRET_KEY` with the backup, or share links will have to be sent again.
 
