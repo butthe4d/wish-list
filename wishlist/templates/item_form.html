@@ -8,7 +8,7 @@
 {% endblock %}
 {% block content %}
 {% if error %}<p role="alert" id="form-error">{{ error.message }}</p>{% endif %}
-<form method="post" novalidate class="item-form"
+<form method="post" novalidate class="item-form" hx-disabled-elt="find button[value='find']"
       action="{{ url_for('member.item_edit', item_id=item.id) if item else url_for('member.item_new') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {#- Enter in a text field submits with the first submit button: make that "Save",
@@ -17,7 +17,7 @@
 
   <div class="link-row">
     <label>{{ _("Shop link") }}
-      <input type="text" name="link" value="{{ form.get('link', '') }}" inputmode="url"
+      <input type="text" name="link" value="{{ form.get('link', '') }}" inputmode="url" data-enter-find
              {% if error and error.field == 'link' %}aria-invalid="true" aria-describedby="form-error"{% endif %}>
     </label>
     <button type="submit" name="action" value="find" class="secondary">{{ _("Find pictures") }}</button>

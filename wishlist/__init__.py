@@ -77,7 +77,7 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     from . import auth
     from .views import admin, images, member, shared
     from .i18n import init_i18n
-    from .themes import DESIGNS, THEMES, get_settings
+    from .themes import DESIGNS, THEME_ICONS, THEMES, get_settings
 
     init_i18n(app)
 
@@ -89,7 +89,7 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
         return {"page_theme": settings.default_theme, "design": settings.design}
 
     # globals, not context: imported macros (_macros.html) only see globals
-    app.jinja_env.globals.update(THEMES=THEMES, DESIGNS=DESIGNS)
+    app.jinja_env.globals.update(THEMES=THEMES, THEME_ICONS=THEME_ICONS, DESIGNS=DESIGNS)
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(admin.bp)

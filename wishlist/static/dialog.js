@@ -24,6 +24,7 @@
     event.stopPropagation();
     if (opening) return;
     opening = true;
+    link.setAttribute("aria-busy", "true");
     var href = link.href;
 
     fetch(href, { credentials: "same-origin", headers: { Accept: "text/html" } })
@@ -43,6 +44,7 @@
       })
       .finally(function () {
         opening = false;
+        link.removeAttribute("aria-busy");
       });
   }, true);
 

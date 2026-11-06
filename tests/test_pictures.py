@@ -211,3 +211,17 @@ def test_operator_deny_list_is_passed(app, local_server, allow_loopback, shop_ro
     )
     with app.app_context(), pytest.raises(PictureError):
         find_pictures(local_server + "/shop")
+
+
+@pytest.mark.parametrize("charset", ["undefined", "idna", "utf-7-nonsense"])
+def test_decode_html_hostile_charset_falls_back(charset):
+    raw = "<p>zażółć</p>".encode()
+    assert "zażółć" in pictures._decode_html(raw, f"text/html; charset={charset}")
+    assert "zażółć" in pictures._decode_html(b'<meta charset="%s">' % charset.encode() + raw, "text/html")
+
+
+def test_process_image_rejects_unsupported_format():
+    buf = io.BytesIO()
+    Image.new("RGB", (20, 20), "red").save(buf, "TIFF")
+    with pytest.raises(PictureError):
+        process_image(buf.getvalue())

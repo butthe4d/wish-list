@@ -48,7 +48,7 @@ def test_grid_shows_tiles_with_states(app, three_items):
     by_name = {n: next(t for t in tiles if n in t) for n in ("Lamp", "Book", "Mug")}
     assert f'href="{_detail(wl, lamp)}"' in by_name["Lamp"] and "data-detail" in by_name["Lamp"]
     assert "is-available" in by_name["Lamp"]
-    assert "RESERVED" in by_name["Book"] and "is-reserved" in by_name["Book"]
+    assert "Reserved<" in by_name["Book"] and "is-reserved" in by_name["Book"]
     assert "Your reservation" in by_name["Mug"] and "is-mine" in by_name["Mug"]
     assert "Grandma" not in html and "Mom" not in html
     assert (
@@ -61,7 +61,7 @@ def test_grid_hint_in_polish(app, three_items):
     wl, _ = three_items
     c = _guest(app, wl)
     html = c.get(f"/shared/{wl.id}", headers={"Accept-Language": "pl"}).text
-    assert "Prezenty, o których marzy Ania." in html and "LISTA ŻYCZEŃ" in html
+    assert "Prezenty, o których marzy Ania." in html and "Lista życzeń" in html
 
 
 def test_detail_available_shows_reserve_form(app, db, item_in_list):
@@ -73,7 +73,7 @@ def test_detail_available_shows_reserve_form(app, db, item_in_list):
     assert r.status_code == 200 and r.headers["Cache-Control"] == "no-store"
     html = r.text
     assert 'class="item-detail' in html and "Lamp" in html and "Warm light" in html
-    assert "Who's buying this?" in html and "I'LL GET IT" in html
+    assert "Who's buying this?" in html and "I'll get it" in html
     assert "Ania won't see it's you." in html
     assert f'action="{_detail(wl, item)}/reserve"' in html
     assert 'name="csrf_token"' in html

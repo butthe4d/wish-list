@@ -1,4 +1,4 @@
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, abort, flash, redirect, render_template, request, url_for
 from flask_babel import gettext as _
 from sqlalchemy import select
 from werkzeug.datastructures import MultiDict
@@ -9,6 +9,7 @@ from ..db import get_session
 from ..errors import ValidationError
 from ..notify import DeliveryError, get_mailer, get_sms
 from ..models import Item
+from ..themes import get_settings
 from ..urls import MAX_ID
 
 bp = Blueprint("member", __name__)
@@ -70,6 +71,9 @@ def _find_pictures(user, item, form):
     try:
         found = pictures.find_pictures(link, limit=FIND_LIMIT)
     except pictures.PictureError:
+        found = []
+    except Exception:  # a hostile page must never turn into a 500
+        current_app.logger.exception("picture search failed")
         found = []
     if not found:
         return _render_form(user, item, form, notice=_("Couldn't find pictures on that page."))
@@ -137,7 +141,7 @@ def _render_home(user, error=None, form=None, status=200):
     return (
         render_template(
             "home.html", user=user, wishlists=user.wishlists, items=items, error=error,
-            form=form or {},
+            form=form or {}, default_theme=get_settings(s).default_theme,
         ),
         status,
     )
@@ -193,6 +197,7 @@ def list_create():
         wl = catalog.create_wishlist(
             s, user, name=request.form.get("name", ""),
             description=request.form.get("description"),
+            theme=request.form.get("theme"),
         )
     except ValidationError as e:
         return _render_home(user, e, request.form)

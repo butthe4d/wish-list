@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-06 08:03-0500\n"
+"POT-Creation-Date: 2026-11-06 08:29-0500\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -167,15 +167,15 @@ msgstr ""
 msgid "Birthday"
 msgstr ""
 
-#: wishlist/themes.py:15
+#: wishlist/themes.py:16
 msgid "A — tiles"
 msgstr ""
 
-#: wishlist/themes.py:23 wishlist/themes.py:40
+#: wishlist/themes.py:24 wishlist/themes.py:41
 msgid "Unknown theme."
 msgstr ""
 
-#: wishlist/themes.py:38
+#: wishlist/themes.py:39
 msgid "Unknown design."
 msgstr ""
 
@@ -195,18 +195,18 @@ msgstr ""
 msgid "Your reservation"
 msgstr ""
 
-#: wishlist/templates/_macros.html:49
+#: wishlist/templates/_macros.html:48
 msgid "Color theme"
 msgstr ""
 
-#: wishlist/templates/base.html:8 wishlist/templates/base.html:32
+#: wishlist/templates/base.html:8 wishlist/templates/base.html:33
 msgid "Wishlist"
 msgstr ""
 
 #: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
 #: wishlist/templates/admin/index.html:13
 #: wishlist/templates/admin/index.html:25
-#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:37
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:38
 msgid "Admin"
 msgstr ""
 
@@ -255,19 +255,19 @@ msgstr ""
 msgid "Description"
 msgstr ""
 
-#: wishlist/templates/home.html:37
+#: wishlist/templates/home.html:39
 msgid "Create list"
 msgstr ""
 
-#: wishlist/templates/home.html:44
+#: wishlist/templates/home.html:46
 msgid "My items"
 msgstr ""
 
-#: wishlist/templates/home.html:45
+#: wishlist/templates/home.html:47
 msgid "Add gift"
 msgstr ""
 
-#: wishlist/templates/home.html:56
+#: wishlist/templates/home.html:58
 msgid "You have no items yet."
 msgstr ""
 
@@ -461,7 +461,7 @@ msgid "Who's buying this?"
 msgstr ""
 
 #: wishlist/templates/shared_item.html:27
-msgid "I'LL GET IT"
+msgid "I'll get it"
 msgstr ""
 
 #: wishlist/templates/shared_item.html:28
@@ -655,41 +655,41 @@ msgstr ""
 msgid "Member deleted."
 msgstr ""
 
-#: wishlist/views/member.py:65
+#: wishlist/views/member.py:66
 msgid "Paste a shop link first."
 msgstr ""
 
-#: wishlist/views/member.py:68 wishlist/views/member.py:110
+#: wishlist/views/member.py:69 wishlist/views/member.py:114
 msgid "Too many picture searches, try again later."
 msgstr ""
 
-#: wishlist/views/member.py:75
+#: wishlist/views/member.py:79
 msgid "Couldn't find pictures on that page."
 msgstr ""
 
-#: wishlist/views/member.py:90
+#: wishlist/views/member.py:94
 msgid "Paste a direct link to a picture."
 msgstr ""
 
-#: wishlist/views/member.py:294 wishlist/views/member.py:319
+#: wishlist/views/member.py:299 wishlist/views/member.py:324
 msgid "Daily sending limit reached, try again tomorrow."
 msgstr ""
 
-#: wishlist/views/member.py:298 wishlist/views/member.py:323
+#: wishlist/views/member.py:303 wishlist/views/member.py:328
 #, python-format
 msgid "Sent to %(recipients)s."
 msgstr ""
 
-#: wishlist/views/member.py:300
+#: wishlist/views/member.py:305
 #, python-format
 msgid "Couldn't send to %(recipients)s."
 msgstr ""
 
-#: wishlist/views/member.py:321
+#: wishlist/views/member.py:326
 msgid "Couldn't send the text message."
 msgstr ""
 
-#: wishlist/views/member.py:333
+#: wishlist/views/member.py:338
 msgid "New share link created. The old link no longer works."
 msgstr ""
 
@@ -734,5 +734,8 @@ msgstr ""
 #~ msgstr ""
 
 #~ msgid "Link"
+#~ msgstr ""
+
+#~ msgid "I'LL GET IT"
 #~ msgstr ""
 

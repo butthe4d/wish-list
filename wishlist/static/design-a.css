@@ -259,6 +259,7 @@ a.brand:hover { color: var(--ink); }
   font-weight: 900;
   font-size: 0.8125rem;
   letter-spacing: 0.3em;
+  text-transform: uppercase;
 }
 
 .site-nav { display: flex; gap: 0.25rem; }
@@ -588,6 +589,7 @@ td button, td [role="button"] { min-height: 44px; padding: 0.375rem 1rem; font-s
   font-size: 0.625rem;
   letter-spacing: 0.2em;
   text-align: center;
+  text-transform: uppercase;
 }
 .tile-badge {
   position: absolute;
@@ -847,6 +849,16 @@ main > .item-detail { margin-top: 0.5rem; }
 .link-row { margin-bottom: 1.25rem; }
 .link-row > label { margin-bottom: 0.625rem; }
 .link-row > button { margin: 0; }
+button[aria-busy="true"],
+.tile[aria-busy="true"] {
+  opacity: 0.55;
+  cursor: progress;
+  animation: busy-pulse 1s ease-in-out infinite alternate;
+}
+@keyframes busy-pulse { to { opacity: 0.85; } }
+@media (prefers-reduced-motion: reduce) {
+  button[aria-busy="true"], .tile[aria-busy="true"] { animation: none; }
+}
 
 .picture-picker { margin-bottom: 1.5rem; }
 .picture-picker > .flash { margin-bottom: 0.75rem; }

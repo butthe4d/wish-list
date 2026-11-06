@@ -170,3 +170,26 @@ def test_owner_page_hides_reservation_state(client, db):
     assert r.status_code == 200
     assert "Lamp" in r.text and "/s/" in r.text
     assert "Mom" not in r.text and "reserved" not in r.text.lower()
+
+
+def test_new_list_form_has_theme_picker_preselecting_default(client, db):
+    _login(client, db)
+    html = client.get("/").text
+    form = html.split('action="/lists"', 1)[1].split("</form>", 1)[0]
+    assert 'name="theme" value="classic" checked' in form
+    assert 'value="christmas"' in form and 'value="birthday"' in form
+
+
+def test_create_list_with_theme(client, db):
+    _login(client, db)
+    client.post("/lists", data={"name": "Xmas", "theme": "christmas"})
+    assert db.query(Wishlist).one().theme == "christmas"
+
+
+def test_create_list_invalid_theme_creates_nothing(client, db):
+    _login(client, db)
+    r = client.post("/lists", data={"name": "Xmas", "theme": "neon"})
+    assert r.status_code == 200 and "Unknown theme." in r.text
+    assert db.query(Wishlist).count() == 0
+    form = r.text.split('action="/lists"', 1)[1].split("</form>", 1)[0]
+    assert 'name="theme" value="classic" checked' in form

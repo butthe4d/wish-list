@@ -18,6 +18,7 @@ Image.MAX_IMAGE_PIXELS = 40_000_000
 MAX_CANDIDATES = 12
 MAX_ATTEMPTS = 8
 FIND_BUDGET = 20
+ALLOWED_FORMATS = ("JPEG", "PNG", "GIF", "WEBP", "BMP", "AVIF")
 MAX_SIDE = 800
 JPEG_QUALITY = 85
 _SKIP_WORDS = frozenset({"sprite", "logo", "icon", "pixel", "spacer"})
@@ -148,12 +149,12 @@ def extract_candidates(html: str, base_url: str) -> list[str]:
 
 def process_image(data: bytes) -> bytes:
     try:
-        with Image.open(io.BytesIO(data)) as probe:
+        with Image.open(io.BytesIO(data), formats=ALLOWED_FORMATS) as probe:
             width, height = probe.size
             if width * height > Image.MAX_IMAGE_PIXELS:
                 raise PictureError("image has too many pixels")
             probe.verify()
-        img = Image.open(io.BytesIO(data))
+        img = Image.open(io.BytesIO(data), formats=ALLOWED_FORMATS)
         if img.format == "JPEG":
             img.draft("RGB", (2 * MAX_SIDE, 2 * MAX_SIDE))
         img.load()
@@ -208,7 +209,7 @@ def _decode_html(content: bytes, content_type: str) -> str:
     if charset:
         try:
             return content.decode(charset, errors="replace")
-        except LookupError:
+        except (LookupError, UnicodeError):  # unknown, or not a text codec (e.g. "undefined", "idna")
             pass
     return content.decode("utf-8", errors="replace")
 

@@ -32,7 +32,7 @@ def test_reserve_flow_hides_name_from_others(app, db, item_in_list):
     assert page.headers["Cache-Control"] == "no-store"
     c2 = _guest(app, wl)
     html = c2.get(f"/shared/{wl.id}").text
-    assert "RESERVED" in html and "Mom" not in html and "Your reservation" not in html
+    assert "Reserved<" in html and "Mom" not in html and "Your reservation" not in html
     assert "Ania" in html
 
 
@@ -130,7 +130,7 @@ def test_non_owner_member_gets_guest_view(app, db, item_in_list):
     login(c, key)
     assert c.get(f"/s/{_key(wl)}").headers["Location"].endswith(f"/shared/{wl.id}")
     assert "Available" in c.get(f"/shared/{wl.id}").text
-    assert "I'LL GET IT" in c.get(f"/shared/{wl.id}/items/{item.id}").text
+    assert "I'll get it" in c.get(f"/shared/{wl.id}/items/{item.id}").text
     with c.session_transaction() as sess:
         assert "uid" in sess and sess["shares"] == {str(wl.id): wl.share_version}
 

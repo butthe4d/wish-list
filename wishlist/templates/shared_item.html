@@ -24,7 +24,7 @@
                value="{{ form.get('name', '') }}"
                {% if error %}aria-invalid="true" aria-describedby="name-error"{% endif %}>
       </label>
-      <button type="submit">{{ _("I'LL GET IT") }}</button>
+      <button type="submit">{{ _("I'll get it") }}</button>
       <p class="detail-note">{{ _("%(name)s won't see it's you.", name=owner_first_name) }}</p>
     </form>
     {% elif state == "mine" %}

@@ -396,3 +396,29 @@ def test_invalid_theme_keeps_current_theme_checked(member_client, db, member):
     assert 'aria-invalid="true"' in fieldset
     error_id = re.search(r'aria-describedby="([^"]+)"', fieldset).group(1)
     assert re.search(r'<p role="alert" id="%s">Unknown theme.</p>' % error_id, r.text)
+
+
+@pytest.mark.parametrize("where", ["header", "meta"])
+def test_find_hostile_charset_is_not_a_500(member_client, app, local_server, allow_loopback, where):
+    body = b"<p>x</p>" if where == "header" else b'<meta charset="undefined"><p>x</p>'
+    ctype = "text/html; charset=undefined" if where == "header" else "text/html"
+    route("/shop")(lambda h: _send(h, body, content_type=ctype))
+    r = member_client.post("/items/new", data={"link": local_server + "/shop", "action": "find"})
+    assert r.status_code == 200
+    assert "Couldn&#39;t find pictures on that page." in r.text
+
+
+def test_find_unexpected_error_is_a_notice(member_client, monkeypatch):
+    def boom(url, limit=3):
+        raise RuntimeError("surprise")
+
+    monkeypatch.setattr(pictures, "find_pictures", boom)
+    r = member_client.post("/items/new", data={"link": "https://shop.example/x", "action": "find"})
+    assert r.status_code == 200
+    assert "Couldn&#39;t find pictures on that page." in r.text
+
+
+def test_form_has_enter_to_search_hook_and_busy_guard(member_client):
+    html = member_client.get("/items/new").text
+    assert re.search(r'<input[^>]*name="link"[^>]*data-enter-find', html)
+    assert "hx-disabled-elt" in html and "find.js" in html

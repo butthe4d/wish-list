@@ -23,7 +23,7 @@
   {% endif %}
   <details class="new-list"{% if error %} open{% endif %}>
     <summary>{{ m.icon("plus") }} {{ _("New list") }}</summary>
-    {% if error %}<p role="alert">{{ error.message }}</p>{% endif %}
+    {% if error %}<p role="alert" id="theme-error">{{ error.message }}</p>{% endif %}
     <form method="post" novalidate action="{{ url_for('member.list_create') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>{{ _("List name") }}
@@ -34,6 +34,8 @@
         <textarea name="description" maxlength="500"
                   {% if error and error.field == 'description' %}aria-invalid="true"{% endif %}>{{ form.get('description', '') }}</textarea>
       </label>
+      {{ m.theme_picker(form.get('theme') if form.get('theme') in THEMES else default_theme,
+                        error_id='theme-error' if error and error.field == 'theme' else None) }}
       <button type="submit">{{ _("Create list") }}</button>
     </form>
   </details>

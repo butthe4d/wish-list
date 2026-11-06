@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Self-hosted Flask household wishlist app (Apache-2.0). Python 3.12+, SQLAlchemy 2, Alembic, Flask-Babel, Flask-WTF, htmx + Pico CSS + Source Sans 3 (all vendored, no build step), Pillow, gunicorn.
+Self-hosted Flask household wishlist app (Apache-2.0). Python 3.12+, SQLAlchemy 2, Alembic, Flask-Babel, Flask-WTF, htmx + hand-written CSS (`design-a.css` + `themes.css`) + Source Sans 3 self-hosted (all vendored, no build step), Pillow, gunicorn.
 
 ## Commands
 

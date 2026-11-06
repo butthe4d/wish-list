@@ -12,6 +12,7 @@ THEMES = {
     "christmas": lazy_gettext("Christmas"),
     "birthday": lazy_gettext("Birthday"),
 }
+THEME_ICONS = {"classic": "gift", "christmas": "tree", "birthday": "cake"}
 DESIGNS = {"a": lazy_gettext("A — tiles")}
 
 DEFAULT_DESIGN = "a"

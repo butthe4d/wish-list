@@ -136,7 +136,7 @@ def test_every_page_renders(app, admin_client, db):
     for path, status in pages.items():
         r = admin_client.get(path)
         assert r.status_code == status, path
-        assert "LISTA ŻYCZEŃ" in r.text or "WISHLIST" in r.text, path
+        assert "Lista życzeń" in r.text or "Wishlist" in r.text, path
         assert 'name="lang"' in r.text, path
     assert app.test_client().get("/").status_code == 401
 
@@ -145,7 +145,7 @@ def test_header_label_translated(client, db):
     _, key = make_user(db, "Ania", "a@x.pl", language="pl")
     login(client, key)
     html = client.get("/").text
-    assert "LISTA ŻYCZEŃ" in html and 'lang="pl"' in html
+    assert "Lista życzeń" in html and 'lang="pl"' in html
 
 
 def _macro(app, call, **ctx):
@@ -159,9 +159,9 @@ def test_tile_macro_states(app):
     assert 'href="/x"' in plain and "Lamp" in plain and "var(--tile-2)" in plain
     assert "ribbon" not in plain and "badge" not in plain
     reserved = _macro(app, '{{ m.tile(item, "/x", state="reserved") }}', item=item)
-    assert "RESERVED" in reserved and "Someone is already getting this" in reserved
+    assert "Reserved<" in reserved and "Someone is already getting this" in reserved
     mine = _macro(app, '{{ m.tile(item, "/x", state="mine") }}', item=item)
-    assert "badge" in mine and "Your reservation" in mine and "RESERVED" not in mine
+    assert "badge" in mine and "Your reservation" in mine and "Reserved<" not in mine
     pic = _macro(app, '{{ m.tile(item, "/x", image_url="/images/a.jpg") }}', item=item)
     assert 'src="/images/a.jpg"' in pic and "var(--tile-" not in pic
 
