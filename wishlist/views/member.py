@@ -102,6 +102,14 @@ def _save_item(user, item, form):
     )
     try:
         choice = _image_choice(form)
+    except ValidationError as e:
+        return _render_form(user, item, form, e)
+    if choice[0] == "url" and not pictures.allow_fetch(user.id):
+        # a pasted link is a server-side fetch too: same per-member limit as "Find pictures"
+        return _render_form(
+            user, item, form, notice=_("Too many picture searches, try again later.")
+        )
+    try:
         if item is None:
             item = catalog.create_item(s, user, **fields)
         else:

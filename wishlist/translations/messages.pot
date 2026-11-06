@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-06 07:51-0500\n"
+"POT-Creation-Date: 2026-11-06 08:03-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,6 +19,10 @@ msgstr ""
 
 #: wishlist/__init__.py:48
 msgid "This page expired, please try again."
+msgstr ""
+
+#: wishlist/__init__.py:71 wishlist/templates/error.html:5
+msgid "Something went wrong. Please try again."
 msgstr ""
 
 #: wishlist/catalog.py:47 wishlist/catalog.py:51
@@ -190,19 +194,27 @@ msgstr ""
 msgid "Your reservation"
 msgstr ""
 
-#: wishlist/templates/_macros.html:47
+#: wishlist/templates/_macros.html:49
 msgid "Color theme"
 msgstr ""
 
-#: wishlist/templates/base.html:8 wishlist/templates/base.html:29
+#: wishlist/templates/base.html:8 wishlist/templates/base.html:32
 msgid "Wishlist"
 msgstr ""
 
 #: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
 #: wishlist/templates/admin/index.html:13
 #: wishlist/templates/admin/index.html:25
-#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:34
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:37
 msgid "Admin"
+msgstr ""
+
+#: wishlist/templates/error.html:2 wishlist/templates/error.html:4
+msgid "Something went wrong"
+msgstr ""
+
+#: wishlist/templates/error.html:5 wishlist/templates/not_found.html:5
+msgid "Go to the start page"
 msgstr ""
 
 #: wishlist/templates/home.html:2 wishlist/templates/item_form.html:5
@@ -268,7 +280,7 @@ msgstr ""
 
 #: wishlist/templates/admin/member_form.html:28
 #: wishlist/templates/item_form.html:16 wishlist/templates/item_form.html:85
-#: wishlist/templates/list_owner.html:106
+#: wishlist/templates/list_owner.html:108
 msgid "Save"
 msgstr ""
 
@@ -419,11 +431,11 @@ msgstr ""
 msgid "Edit list"
 msgstr ""
 
-#: wishlist/templates/list_owner.html:105
+#: wishlist/templates/list_owner.html:107
 msgid "People you share the list with see it in this theme."
 msgstr ""
 
-#: wishlist/templates/list_owner.html:110
+#: wishlist/templates/list_owner.html:112
 msgid "Delete list"
 msgstr ""
 
@@ -433,10 +445,6 @@ msgstr ""
 
 #: wishlist/templates/not_found.html:5
 msgid "There is nothing at this address."
-msgstr ""
-
-#: wishlist/templates/not_found.html:5
-msgid "Go to the start page"
 msgstr ""
 
 #: wishlist/templates/shared_item.html:8
@@ -650,7 +658,7 @@ msgstr ""
 msgid "Paste a shop link first."
 msgstr ""
 
-#: wishlist/views/member.py:68
+#: wishlist/views/member.py:68 wishlist/views/member.py:110
 msgid "Too many picture searches, try again later."
 msgstr ""
 
@@ -662,25 +670,25 @@ msgstr ""
 msgid "Paste a direct link to a picture."
 msgstr ""
 
-#: wishlist/views/member.py:286 wishlist/views/member.py:311
+#: wishlist/views/member.py:294 wishlist/views/member.py:319
 msgid "Daily sending limit reached, try again tomorrow."
 msgstr ""
 
-#: wishlist/views/member.py:290 wishlist/views/member.py:315
+#: wishlist/views/member.py:298 wishlist/views/member.py:323
 #, python-format
 msgid "Sent to %(recipients)s."
 msgstr ""
 
-#: wishlist/views/member.py:292
+#: wishlist/views/member.py:300
 #, python-format
 msgid "Couldn't send to %(recipients)s."
 msgstr ""
 
-#: wishlist/views/member.py:313
+#: wishlist/views/member.py:321
 msgid "Couldn't send the text message."
 msgstr ""
 
-#: wishlist/views/member.py:325
+#: wishlist/views/member.py:333
 msgid "New share link created. The old link no longer works."
 msgstr ""
 

@@ -361,3 +361,38 @@ def test_htmx_swaps_error_responses(client):
     handling = json.loads(m.group(1))["responseHandling"]
     assert {"code": "[45]..", "swap": True, "error": True} in handling
     assert handling[0] == {"code": "204", "swap": False}
+
+
+# --- fix round 1 -------------------------------------------------------------------
+
+
+def test_manual_url_respects_fetch_limit(member_client, db, member, monkeypatch):
+    item = create_item(db, member, name="Lamp", description=None, link=None)
+    downloads = []
+    monkeypatch.setattr(pictures, "allow_fetch", lambda user_id: False)
+    monkeypatch.setattr(pictures, "download_image", lambda url, **kw: downloads.append(url))
+    monkeypatch.setattr("wishlist.catalog.download_image", lambda url, **kw: downloads.append(url))
+    for path in ("/items/new", f"/items/{item.id}/edit"):
+        r = member_client.post(
+            path,
+            data={"name": "Big lamp", "description": "Warm", "picture": "url",
+                  "image_url": "https://shop.example/p.jpg"},
+        )
+        assert r.status_code == 200
+        assert "Too many picture searches, try again later." in r.text
+        assert 'value="Big lamp"' in r.text and "Warm" in r.text
+        assert 'value="https://shop.example/p.jpg"' in r.text
+    assert downloads == []
+    db.expire_all()
+    assert db.query(Item).count() == 1 and db.get(Item, item.id).name == "Lamp"
+
+
+def test_invalid_theme_keeps_current_theme_checked(member_client, db, member):
+    wl = create_wishlist(db, member, name="Birthday", description=None, theme="birthday")
+    r = member_client.post(f"/lists/{wl.id}/edit", data={"name": "Birthday", "theme": "neon"})
+    assert r.status_code == 200
+    assert re.search(r'<input type="radio" name="theme" value="birthday" checked>', r.text)
+    fieldset = re.search(r'<fieldset class="theme-picker"[^>]*>', r.text).group(0)
+    assert 'aria-invalid="true"' in fieldset
+    error_id = re.search(r'aria-describedby="([^"]+)"', fieldset).group(1)
+    assert re.search(r'<p role="alert" id="%s">Unknown theme.</p>' % error_id, r.text)

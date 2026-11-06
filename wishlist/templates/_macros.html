@@ -41,9 +41,10 @@
 {%- endmacro %}
 
 {#- Radio cards, one per theme; each card carries its own data-theme so the swatches
-    show that theme's colors whatever the page theme is. -#}
-{% macro theme_picker(selected, name="theme") -%}
-<fieldset class="theme-picker">
+    show that theme's colors whatever the page theme is. error_id: id of the message
+    explaining an invalid choice. -#}
+{% macro theme_picker(selected, name="theme", error_id=None) -%}
+<fieldset class="theme-picker"{% if error_id %} aria-invalid="true" aria-describedby="{{ error_id }}"{% endif %}>
   <legend>{{ _("Color theme") }}</legend>
   <div class="theme-options">
     {%- for key, label in THEMES.items() %}

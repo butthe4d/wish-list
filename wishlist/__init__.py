@@ -60,6 +60,16 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
             return render_template("link_invalid.html"), 404
         return render_template("not_found.html"), 404
 
+    @app.errorhandler(500)
+    def server_error(error):
+        # Boosted (htmx) requests swap 5xx responses in, so show the app's own layout.
+        try:
+            get_session().rollback()
+            return render_template("error.html"), 500
+        except Exception:
+            app.logger.exception("error page failed")
+            return _("Something went wrong. Please try again."), 500
+
     @app.get("/healthz")
     def healthz():
         return "ok"
