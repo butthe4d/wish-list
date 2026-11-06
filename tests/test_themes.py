@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from wishlist.catalog import create_wishlist, update_wishlist
@@ -64,3 +65,22 @@ def test_update_wishlist_theme_validated(app, db, user):
     update_wishlist(db, wl, name="X", description=None, theme="christmas")
     assert fresh.get(Wishlist, wl.id).theme == "christmas"
     fresh.close()
+
+
+def test_get_settings_is_read_only_on_seeded_db(app, db):
+    st = get_settings(db)
+    assert (st.id, st.design, st.default_theme) == (1, "a", "classic")
+    assert not db.new and not db.dirty
+    assert db.execute(text("SELECT count(*) FROM app_settings")).scalar() == 1
+
+
+def test_get_settings_missing_row_returns_unsaved_default(app, db):
+    db.execute(text("DELETE FROM app_settings"))
+    db.commit()
+    st = get_settings(db)
+    assert (st.design, st.default_theme) == ("a", "classic")
+    assert not db.new
+    assert db.execute(text("SELECT count(*) FROM app_settings")).scalar() == 0
+    update_settings(db, design="a", default_theme="birthday")
+    assert get_settings(db).default_theme == "birthday"
+    assert db.execute(text("SELECT count(*) FROM app_settings")).scalar() == 1

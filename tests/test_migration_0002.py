@@ -49,3 +49,18 @@ def test_upgrade_keeps_data(tmp_path):
         st = get_settings(s)
         assert (st.id, st.design, st.default_theme) == (1, "a", "classic")
     engine.dispose()
+
+
+def test_downgrade_keeps_autoincrement(tmp_path):
+    url = f"sqlite:///{tmp_path / 'd.db'}"
+    upgrade_db(url)
+    cfg = AlembicConfig()
+    cfg.set_main_option("script_location", str(MIGRATIONS_DIR))
+    cfg.attributes["database_url"] = url
+    command.downgrade(cfg, "0001")
+    engine = create_engine(url)
+    with engine.connect() as c:
+        for table in ("wishlist", "item"):
+            sql = c.execute(text("SELECT sql FROM sqlite_master WHERE name = :n"), {"n": table}).scalar()
+            assert "AUTOINCREMENT" in sql, table
+    engine.dispose()

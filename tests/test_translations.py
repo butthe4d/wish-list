@@ -8,14 +8,27 @@ from babel.messages.pofile import read_po
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _extract(out):
+    """Same keywords as `make i18n-update` (read from the Makefile, the single place)."""
+    keywords = re.findall(r"-k (\S+)", (ROOT / "Makefile").read_text())
+    args = [a for k in keywords for a in ("-k", k)]
+    subprocess.run(
+        [sys.executable, "-m", "babel.messages.frontend", "extract", "-F", "babel.cfg", *args,
+         "-o", str(out), "."],
+        cwd=ROOT, check=True, capture_output=True,
+    )
+
+
+def test_extraction_sees_lazy_gettext(tmp_path):
+    pot = tmp_path / "m.pot"
+    _extract(pot)
+    with open(pot, "rb") as f:
+        assert "Christmas" in {m.id for m in read_po(f)}
+
+
 def test_every_message_translated_to_polish(tmp_path):
     pot = tmp_path / "m.pot"
-    subprocess.run(
-        [sys.executable, "-m", "babel.messages.frontend", "extract", "-F", "babel.cfg", "-o", str(pot), "."],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-    )
+    _extract(pot)
     with open(pot, "rb") as f:
         extracted = read_po(f)
     with open(ROOT / "wishlist/translations/pl/LC_MESSAGES/messages.po", "rb") as f:

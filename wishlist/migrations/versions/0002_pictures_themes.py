@@ -21,6 +21,8 @@ def upgrade() -> None:
     sa.Column('default_theme', sa.String(length=20), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_app_settings'))
     )
+    app_settings = sa.table('app_settings', sa.column('id'), sa.column('design'), sa.column('default_theme'))
+    op.bulk_insert(app_settings, [{'id': 1, 'design': 'a', 'default_theme': 'classic'}])
     with op.batch_alter_table('item', schema=None) as batch_op:
         batch_op.add_column(sa.Column('image', sa.String(length=64), nullable=True))
 
@@ -29,10 +31,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    with op.batch_alter_table('wishlist', schema=None) as batch_op:
+    # keep AUTOINCREMENT: ids must never be reused
+    with op.batch_alter_table('wishlist', schema=None, table_kwargs={'sqlite_autoincrement': True}) as batch_op:
         batch_op.drop_column('theme')
 
-    with op.batch_alter_table('item', schema=None) as batch_op:
+    with op.batch_alter_table('item', schema=None, table_kwargs={'sqlite_autoincrement': True}) as batch_op:
         batch_op.drop_column('image')
 
     op.drop_table('app_settings')
