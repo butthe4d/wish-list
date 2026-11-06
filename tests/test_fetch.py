@@ -5,55 +5,16 @@ import ssl
 import subprocess
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 
 import pytest
 
 import wishlist.fetch as fetch
+from conftest import Handler, _redirect, _send, route
 from wishlist.fetch import FetchError, is_public_address, safe_fetch
 
 
-# --- local test server -------------------------------------------------------
-
-ROUTES = {}
-
-
-def route(path):
-    def register(fn):
-        ROUTES[path] = fn
-        return fn
-
-    return register
-
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        handler = ROUTES.get(self.path.split("?")[0])
-        if handler is None:
-            self.send_error(404)
-            return
-        try:
-            handler(self)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
-
-    def log_message(self, *args):
-        pass
-
-
-def _send(h, body, status=200, content_type="text/plain"):
-    h.send_response(status)
-    h.send_header("Content-Type", content_type)
-    h.send_header("Content-Length", str(len(body)))
-    h.end_headers()
-    h.wfile.write(body)
-
-
-def _redirect(h, location, status=302):
-    h.send_response(status)
-    h.send_header("Location", location)
-    h.send_header("Content-Length", "0")
-    h.end_headers()
+# --- local test server (Handler, route, fixtures live in conftest.py) ---
 
 
 @route("/a")
@@ -179,29 +140,6 @@ def _server_error(h):
 def _echo(h):
     seen = f"{h.path}|{h.headers['Host']}|{h.headers['User-Agent']}|{h.headers['Accept']}"
     _send(h, seen.encode())
-
-
-@pytest.fixture
-def local_server(monkeypatch):
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    server.daemon_threads = True
-    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
-    thread.start()
-    port = server.server_port
-    # The fetcher only allows 80/443; let it reach the test server's port.
-    monkeypatch.setattr(fetch, "ALLOWED_PORTS", fetch.ALLOWED_PORTS | {port})
-    yield f"http://127.0.0.1:{port}"
-    server.shutdown()
-    server.server_close()
-
-
-@pytest.fixture
-def allow_loopback(monkeypatch):
-    """Treat exactly 127.0.0.1 as public; every other address keeps the real check."""
-    real = fetch.is_public_address
-    monkeypatch.setattr(
-        fetch, "is_public_address", lambda ip: ip == ipaddress.ip_address("127.0.0.1") or real(ip)
-    )
 
 
 # --- address classification --------------------------------------------------
