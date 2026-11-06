@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from . import images
 from .config import SUPPORTED_LANGUAGES
 from .errors import ValidationError
 from .keys import hash_key, new_key, personal_link
@@ -78,8 +79,14 @@ def update_member(
 def delete_member(s: Session, user: User, acting_admin: User) -> None:
     if user.id == acting_admin.id:
         raise ValidationError("delete", _("You can't delete yourself."))
+    names = [i.image for i in user.items if i.image]
     s.delete(user)
     s.commit()
+    for name in names:
+        try:
+            images.delete(name)
+        except OSError:
+            log.warning("could not delete picture file %s", name, exc_info=True)
 
 
 def rotate_key(s: Session, user: User) -> str:

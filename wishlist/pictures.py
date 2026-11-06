@@ -3,6 +3,7 @@
 import io
 import json
 import re
+import threading
 import time
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
@@ -243,3 +244,27 @@ def find_pictures(page_url: str, *, limit: int = 3) -> list[bytes]:
     if not pictures and time.monotonic() >= expires:
         raise PictureError("time budget exhausted")
     return pictures
+
+
+FETCH_LIMIT = 30
+FETCH_WINDOW = 3600
+_fetch_log: dict[int, list[float]] = {}
+_fetch_lock = threading.Lock()
+
+
+def allow_fetch(user_id: int) -> bool:
+    """Sliding-window limit of 30 page fetches per user per hour.
+
+    In-process only: each gunicorn worker counts separately.
+    """
+    now = time.monotonic()
+    with _fetch_lock:
+        recent = [t for t in _fetch_log.get(user_id, []) if now - t < FETCH_WINDOW]
+        allowed = len(recent) < FETCH_LIMIT
+        if allowed:
+            recent.append(now)
+        if recent:
+            _fetch_log[user_id] = recent
+        else:
+            _fetch_log.pop(user_id, None)
+        return allowed

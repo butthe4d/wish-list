@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-06 06:47-0500\n"
+"POT-Creation-Date: 2026-11-06 07:13-0500\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -22,55 +22,59 @@ msgstr ""
 msgid "This page expired, please try again."
 msgstr ""
 
-#: wishlist/catalog.py:39 wishlist/catalog.py:43
+#: wishlist/catalog.py:47 wishlist/catalog.py:51
 msgid "The link must start with http:// or https://."
 msgstr ""
 
-#: wishlist/catalog.py:49
+#: wishlist/catalog.py:57
 msgid "The link is not a valid address."
 msgstr ""
 
-#: wishlist/catalog.py:51
+#: wishlist/catalog.py:59
 msgid "The link is too long."
 msgstr ""
 
-#: wishlist/catalog.py:58 wishlist/catalog.py:146 wishlist/members.py:28
+#: wishlist/catalog.py:66 wishlist/catalog.py:197 wishlist/members.py:29
 msgid "Name is required."
 msgstr ""
 
-#: wishlist/catalog.py:60 wishlist/catalog.py:148 wishlist/reservations.py:33
+#: wishlist/catalog.py:68 wishlist/catalog.py:199 wishlist/reservations.py:34
 msgid "Name is too long."
 msgstr ""
 
-#: wishlist/catalog.py:63 wishlist/catalog.py:151
+#: wishlist/catalog.py:71 wishlist/catalog.py:202
 msgid "Description is too long."
 msgstr ""
 
-#: wishlist/members.py:30
+#: wishlist/catalog.py:94 wishlist/catalog.py:99
+msgid "Couldn't use that picture."
+msgstr ""
+
+#: wishlist/members.py:31
 msgid "Name must be at most 100 characters."
 msgstr ""
 
-#: wishlist/members.py:32
+#: wishlist/members.py:33
 msgid "Name must not contain control characters."
 msgstr ""
 
-#: wishlist/members.py:35
+#: wishlist/members.py:36
 msgid "Enter a valid email address."
 msgstr ""
 
-#: wishlist/members.py:37
+#: wishlist/members.py:38
 msgid "Choose a supported language."
 msgstr ""
 
-#: wishlist/members.py:42 wishlist/members.py:51
+#: wishlist/members.py:43 wishlist/members.py:52
 msgid "A member with this email already exists."
 msgstr ""
 
-#: wishlist/members.py:72
+#: wishlist/members.py:73
 msgid "There must be at least one admin."
 msgstr ""
 
-#: wishlist/members.py:80
+#: wishlist/members.py:81
 msgid "You can't delete yourself."
 msgstr ""
 
@@ -125,7 +129,7 @@ msgid ""
 "details."
 msgstr ""
 
-#: wishlist/reservations.py:31
+#: wishlist/reservations.py:32
 msgid "Please enter your name."
 msgstr ""
 

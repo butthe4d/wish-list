@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import re
+import logging
 from collections.abc import Iterable
+from typing import TypeAlias
 from urllib.parse import urlsplit
 
 from flask import abort
@@ -14,8 +16,14 @@ from .errors import ValidationError
 from .models import Item, User, Wishlist, utcnow
 from .notify import get_mailer
 from .themes import get_settings, validate_theme
-from . import reservations
+from . import images, reservations
+from .pictures import PictureError, download_image
 from .reservations import notify_orphan, orphan_state
+
+log = logging.getLogger(__name__)
+
+# ("keep",) | ("none",) | ("temp", token) | ("url", image_url)
+ImageChoice: TypeAlias = tuple[str, ...]
 
 NAME_MAX = 200
 WISHLIST_NAME_MAX = 100
@@ -62,6 +70,47 @@ def _clean_fields(name: str, description: str | None, link: str | None):
     if description is not None and len(description) > DESCRIPTION_MAX:
         raise ValidationError("description", _("Description is too long."))
     return name, description, normalize_link(link)
+
+
+def _remove_file(name: str | None) -> None:
+    if not name:
+        return
+    try:
+        images.delete(name)
+    except OSError:
+        log.warning("could not delete picture file %s", name, exc_info=True)
+
+
+def set_item_image(s: Session, item: Item, choice: ImageChoice) -> None:
+    kind = choice[0] if choice else None
+    if kind == "keep":
+        return
+    if kind == "none":
+        new = None
+    elif kind == "temp" and len(choice) == 2:
+        try:
+            new = images.promote_temp(choice[1])
+        except PictureError:
+            raise ValidationError("image", _("Couldn't use that picture.")) from None
+    elif kind == "url" and len(choice) == 2:
+        try:
+            new = images.store(download_image(choice[1]))
+        except PictureError:
+            raise ValidationError("image", _("Couldn't use that picture.")) from None
+    else:
+        raise ValueError(f"unknown image choice: {choice!r}")
+    old = item.image
+    item.image = new
+    item.updated_at = utcnow()
+    try:
+        s.commit()
+    except Exception:
+        s.rollback()
+        if new is not None:
+            _remove_file(new)
+        raise
+    if old != new:
+        _remove_file(old)
 
 
 def set_item_wishlists(s: Session, item: Item, wishlist_ids: Iterable[int]) -> None:
@@ -129,8 +178,10 @@ def delete_item(s: Session, item: Item) -> None:
         s.commit()
         _notify(s, item, was)
     else:
+        image = item.image
         s.delete(item)
         s.commit()
+        _remove_file(image)
 
 
 def get_owned_item(s: Session, user: User, item_id: int) -> Item:

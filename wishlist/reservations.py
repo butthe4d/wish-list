@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from . import images
 from .errors import ValidationError
 from .keys import hash_key
 from .messages import orphan_email
@@ -132,9 +133,16 @@ def reset_dismissal(item: Item) -> None:
 def cancel_by_admin(s: Session, r: Reservation) -> None:
     item = r.item
     s.delete(r)
+    image = None
     if item.deleted_at is not None:
+        image = item.image
         s.delete(item)
     s.commit()
+    if image:
+        try:
+            images.delete(image)
+        except OSError:
+            log.warning("could not delete picture file %s", image, exc_info=True)
 
 
 def dismiss_warning(s: Session, r: Reservation) -> None:
