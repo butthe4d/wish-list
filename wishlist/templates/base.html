@@ -6,13 +6,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ _("Wishlist") }}{% endblock %}</title>
+  {#- htmx 2 does not swap 4xx/5xx by default; boosted links that hit the welcome (401)
+      or not-found (404) page must still show it. -#}
+  <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":true,"error":true}]}'>
   <link rel="stylesheet" href="{{ url_for('static', filename='design-' ~ design ~ '.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='themes.css') }}">
   <script src="{{ url_for('static', filename='htmx.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='copy.js') }}" defer></script>
   <script src="{{ url_for('static', filename='dialog.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='picker.js') }}" defer></script>
 </head>
 <body hx-boost="true">
+{#- Boosted navigation swaps only the body's content, so the theme also lives on this
+    wrapper; data-theme on <html> alone would keep the previous page's theme. #}
+<div class="page" data-theme="{{ active_theme }}">
   <header class="site-header">
     <div class="site-bar">
       {% set brand_icon = {"christmas": "tree", "birthday": "cake"}.get(active_theme, "gift") %}
@@ -51,5 +58,6 @@
     </form>
   </footer>
   <dialog id="detail" class="detail-dialog" aria-labelledby="detail-title"></dialog>
+</div>
 </body>
 </html>

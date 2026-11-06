@@ -128,6 +128,21 @@ def test_already_reserved_rerenders_detail_409(app, db, item_in_list):
     assert "Someone is already getting this" in r.text and "Mom" not in r.text
 
 
+def test_double_submit_of_own_reservation_returns_to_grid(app, db, item_in_list):
+    item, wl = item_in_list
+    c = _guest(app, wl)
+    c.post(_detail(wl, item) + "/reserve", data={"name": "Mom"})
+    r = c.post(_detail(wl, item) + "/reserve", data={"name": "Mom"})
+    assert r.status_code == 302 and r.headers["Location"].endswith(f"/shared/{wl.id}")
+    assert db.query(Reservation).one().reserver_name == "Mom"
+
+
+def test_detail_page_heading_is_h1(app, item_in_list):
+    item, wl = item_in_list
+    html = _guest(app, wl).get(_detail(wl, item)).text
+    assert re.search(r'<h1 id="detail-title">Lamp</h1>', html)
+
+
 def test_detail_access_rules(app, db, user, item_in_list):
     item, wl = item_in_list
     other_list = create_wishlist(db, user, name="Other", description=None)
@@ -168,8 +183,11 @@ def test_picture_on_tile_and_detail(app, db, item_in_list):
     item.image = "abc123.jpg"
     db.commit()
     c = _guest(app, wl)
-    for html in (c.get(f"/shared/{wl.id}").text, c.get(_detail(wl, item)).text):
-        assert re.search(r'<img src="/images/abc123.jpg" alt="Lamp" loading="lazy">', html)
+    # the tile already names the gift in text, so its picture is decorative
+    grid = c.get(f"/shared/{wl.id}").text
+    assert re.search(r'<img src="/images/abc123.jpg" alt="" loading="lazy">', grid)
+    detail = c.get(_detail(wl, item)).text
+    assert re.search(r'<img src="/images/abc123.jpg" alt="Lamp" loading="lazy">', detail)
 
 
 def test_detail_dialog_wiring(app, item_in_list):

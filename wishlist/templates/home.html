@@ -1,51 +1,55 @@
 {% extends "base.html" %}
 {% block title %}{{ _("My wishlist") }}{% endblock %}
+{% block hero %}
+<div class="hero">
+  <h1>{{ _("Hello, %(name)s", name=user.name) }}</h1>
+</div>
+{% endblock %}
 {% block content %}
-<h1>{{ _("Hello, %(name)s", name=user.name) }}</h1>
-
 <section>
   <h2>{{ _("My lists") }}</h2>
   {% if wishlists %}
-  <ul>
+  <ul class="list-cards">
     {% for w in wishlists %}
-    <li><a href="{{ url_for('member.list_view', wl_id=w.id) }}">{{ w.name }}</a> ({{ ngettext("%(num)d item", "%(num)d items", w.items|selectattr("deleted_at", "none")|list|length) }})</li>
+    <li><a class="list-card" data-theme="{{ w.theme }}" href="{{ url_for('member.list_view', wl_id=w.id) }}">
+      <span class="list-card-name">{{ w.name }}</span>
+      <span class="list-card-meta">{{ ngettext("%(num)d item", "%(num)d items", w.items|selectattr("deleted_at", "none")|list|length) }} · {{ THEMES.get(w.theme, w.theme) }}</span>
+      <span class="list-card-swatches" aria-hidden="true"><span style="background-color: var(--tile-1)"></span><span style="background-color: var(--tile-2)"></span><span style="background-color: var(--tile-3)"></span><span style="background-color: var(--tile-4)"></span></span>
+    </a></li>
     {% endfor %}
   </ul>
   {% else %}
   <p>{{ _("You have no lists yet.") }}</p>
   {% endif %}
-  {% if error %}<p role="alert">{{ error.message }}</p>{% endif %}
-  <form method="post" novalidate action="{{ url_for('member.list_create') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>{{ _("List name") }}
-      <input type="text" name="name" value="{{ form.get('name', '') }}" maxlength="100" required
-             {% if error and error.field == 'name' %}aria-invalid="true"{% endif %}>
-    </label>
-    <label>{{ _("Description") }}
-      <textarea name="description" maxlength="500"
-                {% if error and error.field == 'description' %}aria-invalid="true"{% endif %}>{{ form.get('description', '') }}</textarea>
-    </label>
-    <button type="submit">{{ _("Create list") }}</button>
-  </form>
+  <details class="new-list"{% if error %} open{% endif %}>
+    <summary>{{ m.icon("plus") }} {{ _("New list") }}</summary>
+    {% if error %}<p role="alert">{{ error.message }}</p>{% endif %}
+    <form method="post" novalidate action="{{ url_for('member.list_create') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>{{ _("List name") }}
+        <input type="text" name="name" value="{{ form.get('name', '') }}" maxlength="100" required
+               {% if error and error.field == 'name' %}aria-invalid="true"{% endif %}>
+      </label>
+      <label>{{ _("Description") }}
+        <textarea name="description" maxlength="500"
+                  {% if error and error.field == 'description' %}aria-invalid="true"{% endif %}>{{ form.get('description', '') }}</textarea>
+      </label>
+      <button type="submit">{{ _("Create list") }}</button>
+    </form>
+  </details>
 </section>
 
 <section>
-  <h2>{{ _("My items") }}</h2>
-  <p><a href="{{ url_for('member.item_new') }}" role="button">{{ _("Add item") }}</a></p>
+  <div class="section-head">
+    <h2>{{ _("My items") }}</h2>
+    <a href="{{ url_for('member.item_new') }}" role="button">{{ m.icon("plus") }} {{ _("Add gift") }}</a>
+  </div>
   {% if items %}
-  <ul>
+  <ul class="tiles">
     {% for item in items %}
-    <li>
-      <strong>{{ item.name }}</strong>
-      {% if item.link %}<a href="{{ item.link }}" rel="noopener noreferrer" target="_blank">{{ _("Store link") }}</a>{% endif %}
-      {% if item.description %}<br><small>{{ item.description }}</small>{% endif %}
-      <br>
-      <a href="{{ url_for('member.item_edit', item_id=item.id) }}">{{ _("Edit") }}</a>
-      <form method="post" novalidate action="{{ url_for('member.item_delete', item_id=item.id) }}" style="display:inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="secondary outline">{{ _("Delete") }}</button>
-      </form>
-    </li>
+    <li>{{ m.tile(item, url_for('member.item_edit', item_id=item.id),
+                  image_url=url_for('images.item_image', name=item.image) if item.image else None,
+                  index=loop.index0) }}</li>
     {% endfor %}
   </ul>
   {% else %}

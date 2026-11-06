@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-06 07:34-0500\n"
+"POT-Creation-Date: 2026-11-06 07:51-0500\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pl\n"
@@ -214,31 +214,31 @@ msgstr "Twoja rezerwacja"
 msgid "Color theme"
 msgstr "Motyw kolorystyczny"
 
-#: wishlist/templates/base.html:8 wishlist/templates/base.html:25
+#: wishlist/templates/base.html:8 wishlist/templates/base.html:29
 msgid "Wishlist"
 msgstr "Lista życzeń"
 
 #: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
 #: wishlist/templates/admin/index.html:13
 #: wishlist/templates/admin/index.html:25
-#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:30
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:34
 msgid "Admin"
 msgstr "Administrator"
 
-#: wishlist/templates/home.html:2
+#: wishlist/templates/home.html:2 wishlist/templates/item_form.html:5
 msgid "My wishlist"
 msgstr "Moja lista życzeń"
 
-#: wishlist/templates/home.html:4
+#: wishlist/templates/home.html:5
 #, python-format
 msgid "Hello, %(name)s"
 msgstr "Cześć, %(name)s"
 
-#: wishlist/templates/home.html:7
+#: wishlist/templates/home.html:10 wishlist/templates/list_owner.html:5
 msgid "My lists"
 msgstr "Moje listy"
 
-#: wishlist/templates/home.html:11
+#: wishlist/templates/home.html:16
 #, python-format
 msgid "%(num)d item"
 msgid_plural "%(num)d items"
@@ -246,78 +246,108 @@ msgstr[0] "%(num)d pozycja"
 msgstr[1] "%(num)d pozycje"
 msgstr[2] "%(num)d pozycji"
 
-#: wishlist/templates/home.html:15
+#: wishlist/templates/home.html:22
 msgid "You have no lists yet."
 msgstr "Nie masz jeszcze żadnych list."
 
-#: wishlist/templates/home.html:20 wishlist/templates/list_owner.html:91
+#: wishlist/templates/home.html:25
+msgid "New list"
+msgstr "Nowa lista"
+
+#: wishlist/templates/home.html:29 wishlist/templates/list_owner.html:96
 msgid "List name"
 msgstr "Nazwa listy"
 
-#: wishlist/templates/home.html:24 wishlist/templates/item_form.html:12
-#: wishlist/templates/list_owner.html:95
+#: wishlist/templates/home.html:33 wishlist/templates/item_form.html:69
+#: wishlist/templates/list_owner.html:100
 msgid "Description"
 msgstr "Opis"
 
-#: wishlist/templates/home.html:28
+#: wishlist/templates/home.html:37
 msgid "Create list"
 msgstr "Utwórz listę"
 
-#: wishlist/templates/home.html:33
+#: wishlist/templates/home.html:44
 msgid "My items"
 msgstr "Moje pozycje"
 
-#: wishlist/templates/home.html:34
-msgid "Add item"
-msgstr "Dodaj pozycję"
+#: wishlist/templates/home.html:45
+msgid "Add gift"
+msgstr "Dodaj prezent"
 
-#: wishlist/templates/home.html:40 wishlist/templates/list_owner.html:15
-msgid "Store link"
-msgstr "Link do sklepu"
-
-#: wishlist/templates/admin/index.html:27 wishlist/templates/home.html:43
-msgid "Edit"
-msgstr "Edytuj"
-
-#: wishlist/templates/admin/index.html:39 wishlist/templates/home.html:46
-msgid "Delete"
-msgstr "Usuń"
-
-#: wishlist/templates/home.html:52
+#: wishlist/templates/home.html:56
 msgid "You have no items yet."
 msgstr "Nie masz jeszcze żadnych pozycji."
 
-#: wishlist/templates/item_form.html:2 wishlist/templates/item_form.html:4
+#: wishlist/templates/item_form.html:2 wishlist/templates/item_form.html:6
 msgid "Edit item"
 msgstr "Edytuj pozycję"
 
-#: wishlist/templates/item_form.html:2 wishlist/templates/item_form.html:4
+#: wishlist/templates/item_form.html:2 wishlist/templates/item_form.html:6
 msgid "New item"
 msgstr "Nowa pozycja"
 
-#: wishlist/templates/admin/index.html:13
-#: wishlist/templates/admin/member_form.html:8
-#: wishlist/templates/item_form.html:8
-msgid "Name"
-msgstr "Nazwa"
-
-#: wishlist/templates/item_form.html:16
-msgid "Link"
-msgstr "Link"
-
-#: wishlist/templates/item_form.html:22
-msgid "Lists"
-msgstr "Listy"
-
 #: wishlist/templates/admin/member_form.html:28
-#: wishlist/templates/item_form.html:31 wishlist/templates/list_owner.html:99
+#: wishlist/templates/item_form.html:16 wishlist/templates/item_form.html:85
+#: wishlist/templates/list_owner.html:106
 msgid "Save"
 msgstr "Zapisz"
 
+#: wishlist/templates/item_form.html:19
+msgid "Shop link"
+msgstr "Link do sklepu"
+
+#: wishlist/templates/item_form.html:23
+msgid "Find pictures"
+msgstr "Szukaj zdjęć"
+
+#: wishlist/templates/item_form.html:27
+msgid "Picture"
+msgstr "Zdjęcie"
+
+#: wishlist/templates/item_form.html:35
+msgid "Current picture"
+msgstr "Obecne zdjęcie"
+
+#: wishlist/templates/item_form.html:38
+msgid "Change"
+msgstr "Zmień"
+
+#: wishlist/templates/item_form.html:45
+#, python-format
+msgid "Picture %(num)d"
+msgstr "Zdjęcie %(num)d"
+
+#: wishlist/templates/item_form.html:54
+msgid "Or paste a direct image link"
+msgstr "Albo wklej bezpośredni link do zdjęcia"
+
+#: wishlist/templates/item_form.html:57
+msgid "Direct image link"
+msgstr "Bezpośredni link do zdjęcia"
+
+#: wishlist/templates/item_form.html:61
+msgid "No picture"
+msgstr "Bez zdjęcia"
+
+#: wishlist/templates/admin/index.html:13
+#: wishlist/templates/admin/member_form.html:8
+#: wishlist/templates/item_form.html:65
+msgid "Name"
+msgstr "Nazwa"
+
+#: wishlist/templates/item_form.html:75
+msgid "Lists"
+msgstr "Listy"
+
 #: wishlist/templates/admin/member_form.html:29
-#: wishlist/templates/item_form.html:32
+#: wishlist/templates/item_form.html:86
 msgid "Cancel"
 msgstr "Anuluj"
+
+#: wishlist/templates/admin/index.html:39 wishlist/templates/item_form.html:92
+msgid "Delete"
+msgstr "Usuń"
 
 #: wishlist/templates/link_invalid.html:3
 msgid "Link not valid"
@@ -327,95 +357,94 @@ msgstr "Nieprawidłowy link"
 msgid "This link is no longer valid. Ask your admin for a new one."
 msgstr "Ten link jest już nieważny. Poproś administratora o nowy."
 
-#: wishlist/templates/admin/member_lists.html:6
-#: wishlist/templates/list_owner.html:6
-msgid "Back"
-msgstr "Wstecz"
-
-#: wishlist/templates/list_owner.html:9
+#: wishlist/templates/list_owner.html:12
 msgid "Items"
 msgstr "Pozycje"
 
-#: wishlist/templates/list_owner.html:19
+#: wishlist/templates/list_owner.html:22
 msgid "Remove from list"
 msgstr "Usuń z listy"
 
 #: wishlist/templates/admin/member_lists.html:55
-#: wishlist/templates/list_owner.html:25 wishlist/templates/shared_list.html:20
+#: wishlist/templates/list_owner.html:28 wishlist/templates/shared_list.html:20
 msgid "This list has no items yet."
 msgstr "Ta lista nie ma jeszcze żadnych pozycji."
 
-#: wishlist/templates/list_owner.html:31
+#: wishlist/templates/list_owner.html:34
 msgid "Add items"
 msgstr "Dodaj pozycje"
 
-#: wishlist/templates/list_owner.html:39
+#: wishlist/templates/list_owner.html:42
 msgid "Add selected"
 msgstr "Dodaj zaznaczone"
 
-#: wishlist/templates/list_owner.html:45
+#: wishlist/templates/list_owner.html:48
 msgid "Share"
 msgstr "Udostępnij"
 
-#: wishlist/templates/list_owner.html:46
+#: wishlist/templates/list_owner.html:49
 msgid "Share link"
 msgstr "Link do udostępniania"
 
 #: wishlist/templates/admin/link_once.html:17
-#: wishlist/templates/list_owner.html:50
+#: wishlist/templates/list_owner.html:53
 msgid "Copied!"
 msgstr "Skopiowano!"
 
 #: wishlist/templates/admin/link_once.html:17
-#: wishlist/templates/list_owner.html:50
+#: wishlist/templates/list_owner.html:53
 msgid "Copy link"
 msgstr "Kopiuj link"
 
-#: wishlist/templates/list_owner.html:54
+#: wishlist/templates/list_owner.html:57
 msgid "Send by email"
 msgstr "Wyślij e-mailem"
 
-#: wishlist/templates/list_owner.html:55
+#: wishlist/templates/list_owner.html:58
 msgid "Email addresses, separated by commas"
 msgstr "Adresy e-mail, oddzielone przecinkami"
 
-#: wishlist/templates/list_owner.html:57
+#: wishlist/templates/list_owner.html:60
 msgid "Send email"
 msgstr "Wyślij e-mail"
 
-#: wishlist/templates/list_owner.html:63
+#: wishlist/templates/list_owner.html:66
 msgid "Send by text message"
 msgstr "Wyślij SMS-em"
 
-#: wishlist/templates/list_owner.html:66
+#: wishlist/templates/list_owner.html:69
 msgid "Send text message"
 msgstr "Wyślij SMS"
 
-#: wishlist/templates/list_owner.html:71
+#: wishlist/templates/list_owner.html:74
 msgid "Create new share link (old one stops working)"
 msgstr "Utwórz nowy link do udostępniania (stary przestanie działać)"
 
-#: wishlist/templates/list_owner.html:74
+#: wishlist/templates/list_owner.html:77
 msgid "Shared so far"
 msgstr "Dotychczas udostępniono"
 
-#: wishlist/templates/list_owner.html:76
+#: wishlist/templates/list_owner.html:80
 msgid "Channel"
 msgstr "Kanał"
 
-#: wishlist/templates/list_owner.html:76
+#: wishlist/templates/list_owner.html:80
 msgid "Recipient"
 msgstr "Odbiorca"
 
-#: wishlist/templates/list_owner.html:76
+#: wishlist/templates/list_owner.html:80
 msgid "Sent"
 msgstr "Wysłano"
 
-#: wishlist/templates/list_owner.html:87
+#: wishlist/templates/list_owner.html:92
 msgid "Edit list"
 msgstr "Edytuj listę"
 
-#: wishlist/templates/list_owner.html:103
+#: wishlist/templates/list_owner.html:105
+msgid "People you share the list with see it in this theme."
+msgstr "Tak zobaczą listę osoby, którym ją udostępnisz."
+
+#: wishlist/templates/list_owner.html:110
 msgid "Delete list"
 msgstr "Usuń listę"
 
@@ -464,8 +493,8 @@ msgid ""
 "Gifts %(name)s is wishing for. Tap a gift to see more — %(name)s won't "
 "see who picked what."
 msgstr ""
-"Prezenty, o których marzy %(name)s. Dotknij prezentu, żeby zobaczyć więcej "
-"— %(name)s nie zobaczy, kto co wybrał."
+"Prezenty, o których marzy %(name)s. Dotknij prezentu, żeby zobaczyć "
+"więcej — %(name)s nie zobaczy, kto co wybrał."
 
 #: wishlist/templates/welcome.html:3
 msgid "Welcome"
@@ -506,6 +535,10 @@ msgstr "Tak"
 #: wishlist/templates/admin/index.html:25
 msgid "No"
 msgstr "Nie"
+
+#: wishlist/templates/admin/index.html:27
+msgid "Edit"
+msgstr "Edytuj"
 
 #: wishlist/templates/admin/index.html:30
 msgid "Change key and send new link"
@@ -578,6 +611,10 @@ msgstr "Edytuj członka"
 msgid "New member"
 msgstr "Nowy członek"
 
+#: wishlist/templates/admin/member_lists.html:6
+msgid "Back"
+msgstr "Wstecz"
+
 #: wishlist/templates/admin/member_lists.html:20
 msgid ""
 "Something on this member's lists needs your attention. Click \"Show "
@@ -638,29 +675,45 @@ msgstr "Zaznacz pole potwierdzenia, aby usunąć członka."
 msgid "Member deleted."
 msgstr "Członek został usunięty."
 
-#: wishlist/views/member.py:227 wishlist/views/member.py:252
+#: wishlist/views/member.py:65
+msgid "Paste a shop link first."
+msgstr "Najpierw wklej link do sklepu."
+
+#: wishlist/views/member.py:68
+msgid "Too many picture searches, try again later."
+msgstr "Za dużo wyszukiwań zdjęć, spróbuj później."
+
+#: wishlist/views/member.py:75
+msgid "Couldn't find pictures on that page."
+msgstr "Nie udało się znaleźć zdjęć na tej stronie."
+
+#: wishlist/views/member.py:90
+msgid "Paste a direct link to a picture."
+msgstr "Wklej bezpośredni link do zdjęcia."
+
+#: wishlist/views/member.py:286 wishlist/views/member.py:311
 msgid "Daily sending limit reached, try again tomorrow."
 msgstr "Osiągnięto dzienny limit wysyłania, spróbuj jutro."
 
-#: wishlist/views/member.py:231 wishlist/views/member.py:256
+#: wishlist/views/member.py:290 wishlist/views/member.py:315
 #, python-format
 msgid "Sent to %(recipients)s."
 msgstr "Wysłano do: %(recipients)s."
 
-#: wishlist/views/member.py:233
+#: wishlist/views/member.py:292
 #, python-format
 msgid "Couldn't send to %(recipients)s."
 msgstr "Nie udało się wysłać do: %(recipients)s."
 
-#: wishlist/views/member.py:254
+#: wishlist/views/member.py:313
 msgid "Couldn't send the text message."
 msgstr "Nie udało się wysłać SMS-a."
 
-#: wishlist/views/member.py:266
+#: wishlist/views/member.py:325
 msgid "New share link created. The old link no longer works."
 msgstr "Utworzono nowy link do udostępniania. Stary link już nie działa."
 
-#: wishlist/views/shared.py:135
+#: wishlist/views/shared.py:137
 msgid "Sorry, someone just reserved that item."
 msgstr "Przepraszamy, ktoś właśnie zarezerwował ten prezent."
 
@@ -699,4 +752,10 @@ msgstr "Przepraszamy, ktoś właśnie zarezerwował ten prezent."
 
 #~ msgid "Reserved by you"
 #~ msgstr "Zarezerwowane przez Ciebie"
+
+#~ msgid "Store link"
+#~ msgstr "Link do sklepu"
+
+#~ msgid "Link"
+#~ msgstr "Link"
 

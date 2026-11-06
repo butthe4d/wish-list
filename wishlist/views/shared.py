@@ -131,6 +131,8 @@ def reserve(wl_id, item_id):
         return _render_item(wl, item, error=e, form=request.form, status=400)
     except reservations.AlreadyReserved:
         s.expire_all()
+        if reservations.state_for_guest(item, token) == "mine":  # a double submit
+            return redirect(url_for("shared.view", wl_id=wl.id))
         return _render_item(
             wl, item, notice=_("Sorry, someone just reserved that item."), status=409
         )

@@ -3,7 +3,7 @@ from flask_babel import gettext as _
 from sqlalchemy import select
 from werkzeug.datastructures import MultiDict
 
-from .. import catalog, sharing
+from .. import catalog, images, pictures, sharing
 from ..auth import current_user, member_required
 from ..db import get_session
 from ..errors import ValidationError
@@ -12,6 +12,8 @@ from ..models import Item
 from ..urls import MAX_ID
 
 bp = Blueprint("member", __name__)
+
+FIND_LIMIT = 3  # picture candidates shown on the item form
 
 
 def _form_ids(field: str) -> list[int]:
@@ -28,15 +30,91 @@ def _form_wishlist_ids() -> list[int]:
     return _form_ids("wishlist_ids")
 
 
-def _render_form(user, item, form, error=None, status=200):
+def _candidate_tokens(form) -> list[str]:
+    """Temp pictures found earlier for this form that still exist (ignores anything else)."""
+    tokens = []
+    for token in form.getlist("candidate"):
+        if token not in tokens and images.temp_path(token) is not None:
+            tokens.append(token)
+    return tokens[:FIND_LIMIT]
+
+
+def _render_form(user, item, form, error=None, *, candidates=None, notice=None, picture=None):
     selected = {int(v) for v in form.getlist("wishlist_ids") if v.isdigit()}
-    return (
-        render_template(
-            "item_form.html", item=item, form=form, error=error, selected=selected,
-            wishlists=user.wishlists,
-        ),
-        status,
+    candidates = _candidate_tokens(form) if candidates is None else candidates
+    options = {f"temp:{t}" for t in candidates} | {"url", "none"}
+    if item is not None and item.image:
+        options.add("keep")
+    if picture not in options:
+        picture = form.get("picture")
+    if picture not in options:
+        picture = "keep" if "keep" in options else "none"
+    return render_template(
+        "item_form.html", item=item, form=form, error=error, selected=selected,
+        wishlists=user.wishlists, candidates=candidates, notice=notice, picture=picture,
     )
+
+
+def _find_pictures(user, item, form):
+    """The "Find pictures" button: search the shop page and re-render with candidates."""
+    try:
+        link = catalog.normalize_link(form.get("link"))
+    except ValidationError as e:
+        return _render_form(user, item, form, e)
+    if link is None:
+        return _render_form(user, item, form, ValidationError("link", _("Paste a shop link first.")))
+    if not pictures.allow_fetch(user.id):
+        return _render_form(
+            user, item, form, notice=_("Too many picture searches, try again later.")
+        )
+    try:
+        found = pictures.find_pictures(link, limit=FIND_LIMIT)
+    except pictures.PictureError:
+        found = []
+    if not found:
+        return _render_form(user, item, form, notice=_("Couldn't find pictures on that page."))
+    tokens = [images.store_temp(data) for data in found]
+    keep_current = item is not None and item.image
+    return _render_form(
+        user, item, form, candidates=tokens, picture="keep" if keep_current else f"temp:{tokens[0]}"
+    )
+
+
+def _image_choice(form) -> catalog.ImageChoice:
+    picture = form.get("picture", "")
+    if picture == "none":
+        return ("none",)
+    if picture == "url":
+        url = form.get("image_url", "").strip()
+        if not url:
+            raise ValidationError("image", _("Paste a direct link to a picture."))
+        return ("url", url)
+    if picture.startswith("temp:"):
+        return ("temp", picture.removeprefix("temp:"))
+    return ("keep",)
+
+
+def _save_item(user, item, form):
+    s = get_session()
+    fields = dict(
+        name=form.get("name", ""), description=form.get("description"), link=form.get("link"),
+        wishlist_ids=_form_wishlist_ids(),
+    )
+    try:
+        choice = _image_choice(form)
+        if item is None:
+            item = catalog.create_item(s, user, **fields)
+        else:
+            catalog.update_item(s, item, **fields)
+    except ValidationError as e:
+        s.rollback()
+        return _render_form(user, item, form, e)
+    try:
+        catalog.set_item_image(s, item, choice)
+    except ValidationError as e:
+        # The item itself is saved; show its edit form so a re-submit doesn't duplicate it.
+        return _render_form(user, item, form, e)
+    return redirect(url_for("member.home"))
 
 
 def _render_home(user, error=None, form=None, status=200):
@@ -68,18 +146,9 @@ def home():
 def item_new():
     user = current_user()
     if request.method == "POST":
-        try:
-            catalog.create_item(
-                get_session(),
-                user,
-                name=request.form.get("name", ""),
-                description=request.form.get("description"),
-                link=request.form.get("link"),
-                wishlist_ids=_form_wishlist_ids(),
-            )
-        except ValidationError as e:
-            return _render_form(user, None, request.form, e, 200)
-        return redirect(url_for("member.home"))
+        if request.form.get("action") == "find":
+            return _find_pictures(user, None, request.form)
+        return _save_item(user, None, request.form)
     return _render_form(user, None, request.form)
 
 
@@ -87,22 +156,11 @@ def item_new():
 @member_required
 def item_edit(item_id):
     user = current_user()
-    s = get_session()
-    item = catalog.get_owned_item(s, user, item_id)
+    item = catalog.get_owned_item(get_session(), user, item_id)
     if request.method == "POST":
-        try:
-            catalog.update_item(
-                s,
-                item,
-                name=request.form.get("name", ""),
-                description=request.form.get("description"),
-                link=request.form.get("link"),
-                wishlist_ids=_form_wishlist_ids(),
-            )
-        except ValidationError as e:
-            s.rollback()
-            return _render_form(user, item, request.form, e, 200)
-        return redirect(url_for("member.home"))
+        if request.form.get("action") == "find":
+            return _find_pictures(user, item, request.form)
+        return _save_item(user, item, request.form)
     form = MultiDict(
         [("name", item.name), ("description", item.description or ""), ("link", item.link or "")]
         + [("wishlist_ids", str(w.id)) for w in item.wishlists]
@@ -150,7 +208,7 @@ def _render_list(user, wl, error=None, form=None, status=200):
             "list_owner.html", wl=wl, items=live, available=available, share_url=sharing.wishlist_share_link(wl),
             share_logs=sorted(wl.share_logs, key=lambda l: (l.sent_at, l.id), reverse=True),
             can_email=get_mailer() is not None, can_sms=get_sms() is not None,
-            error=error, form=form or {},
+            error=error, form=form or {}, theme=wl.theme,
         ),
         status,
     )
@@ -172,7 +230,8 @@ def list_edit(wl_id):
     try:
         catalog.update_wishlist(
             s, wl, name=request.form.get("name", ""),
-            description=request.form.get("description"), theme=wl.theme,
+            description=request.form.get("description"),
+            theme=request.form.get("theme", wl.theme),
         )
     except ValidationError as e:
         s.rollback()

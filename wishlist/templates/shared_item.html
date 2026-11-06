@@ -8,7 +8,7 @@
     <a class="detail-close" href="{{ grid_url }}" data-detail-close aria-label="{{ _('Close') }}">{{ m.icon("close") }}</a>
   </div>
   <div class="detail-body">
-    <h2 id="detail-title">{{ item.name }}</h2>
+    <h1 id="detail-title">{{ item.name }}</h1>
     {% if item.description %}<p class="detail-description">{{ item.description }}</p>{% endif %}
     {% if item.link %}
     <p class="detail-shop"><a href="{{ item.link }}" rel="noopener noreferrer" target="_blank">{{ _("See in shop") }} {{ m.icon("external") }}</a></p>

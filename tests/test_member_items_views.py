@@ -24,9 +24,11 @@ def test_create_item_appears_on_home(client, db):
     )
     assert r.status_code == 302
     html = client.get("/").text
-    assert "Lamp" in html and "https://shop.pl/lamp" in html and "Birthday" in html
+    assert "Lamp" in html and "Birthday" in html
     assert "1 item" in html
-    assert 'rel="noopener noreferrer"' in html
+    item = db.query(Item).one()
+    assert f'href="/items/{item.id}/edit"' in html  # home tiles open the item form
+    assert 'value="https://shop.pl/lamp"' in client.get(f"/items/{item.id}/edit").text
 
 
 def test_form_shows_checkboxes_only_with_lists(client, db):
