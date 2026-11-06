@@ -17,7 +17,7 @@ Features: personal login links (no passwords), email and optional SMS sharing, i
 3. Open the printed `Admin link: ...` in your browser. That link is your login, so keep it private. The first admin is created only when the database is empty.
 4. In the admin page, add the other members. Each gets their own personal link, shown on screen and emailed if SMTP is configured.
 
-The database lives in `./data/wishlist.db` and item pictures in `./data/images/`. Migrations run automatically at every start.The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
+The database lives in `./data/wishlist.db` and item pictures in `./data/images/`. Migrations run automatically at every start. The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
 
 **Upgrading:** back up `data/` first (see [Backup](#backup)). The migration that adds pictures and themes runs automatically on the first start of the new version, and existing lists start with the Classic theme. Going back to an older image after upgrading is not supported.
 
