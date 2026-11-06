@@ -3,6 +3,7 @@
 import io
 import json
 import re
+import time
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
@@ -15,9 +16,10 @@ Image.MAX_IMAGE_PIXELS = 40_000_000
 
 MAX_CANDIDATES = 12
 MAX_ATTEMPTS = 8
+FIND_BUDGET = 20
 MAX_SIDE = 800
 JPEG_QUALITY = 85
-_SKIP_WORDS = ("sprite", "logo", "icon", "pixel", "spacer")
+_SKIP_WORDS = frozenset({"sprite", "logo", "icon", "pixel", "spacer"})
 _CHARSET_RE = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?\s*([A-Za-z0-9_.:-]+)""", re.I)
 _CT_CHARSET_RE = re.compile(r"charset\s*=\s*[\"']?([A-Za-z0-9_.:-]+)", re.I)
 
@@ -27,14 +29,12 @@ class PictureError(Exception):
 
 
 def _first_srcset_url(srcset: str) -> str:
-    first = srcset.split(",")[0].strip()
+    first = re.split(r",\s", srcset.strip(), maxsplit=1)[0].strip()
     return first.split()[0] if first else ""
 
 
 def _size_below_100(value: str | None) -> bool:
-    if not value:
-        return False
-    m = re.match(r"\s*(\d+)", value)
+    m = re.fullmatch(r"\s*(\d+)(?:px)?\s*", value or "", re.I)
     return bool(m) and int(m.group(1)) < 100
 
 
@@ -103,7 +103,7 @@ class _Collector(HTMLParser):
         if tag == "script" and self._ld_buf is not None:
             try:
                 _json_ld_images(json.loads("".join(self._ld_buf)), self.json_ld)
-            except ValueError:
+            except (ValueError, RecursionError):
                 pass
             self._ld_buf = None
 
@@ -132,8 +132,9 @@ def extract_candidates(html: str, base_url: str) -> list[str]:
         if parts.scheme not in ("http", "https") or not parts.hostname:
             continue
         if from_img:
-            lowered = absolute.lower()
-            if parts.path.lower().endswith(".svg") or any(w in lowered for w in _SKIP_WORDS):
+            filename = parts.path.lower().rsplit("/", 1)[-1]
+            tokens = {t.rstrip("s") for t in re.split(r"[^a-z]+", filename)}
+            if filename.endswith(".svg") or tokens & _SKIP_WORDS:
                 continue
         if absolute in seen:
             continue
@@ -152,6 +153,8 @@ def process_image(data: bytes) -> bytes:
                 raise PictureError("image has too many pixels")
             probe.verify()
         img = Image.open(io.BytesIO(data))
+        if img.format == "JPEG":
+            img.draft("RGB", (2 * MAX_SIDE, 2 * MAX_SIDE))
         img.load()
     except PictureError:
         raise
@@ -178,10 +181,14 @@ def _deny_networks():
     return current_app.config["WISHLIST"].fetch_deny_networks
 
 
-def download_image(url: str) -> bytes:
+def download_image(url: str, *, timeout: float | None = None) -> bytes:
     try:
         result = safe_fetch(
-            url, max_bytes=IMAGE_MAX_BYTES, accept="image/*", deny_networks=_deny_networks()
+            url,
+            max_bytes=IMAGE_MAX_BYTES,
+            accept="image/*",
+            deny_networks=_deny_networks(),
+            timeout=timeout,
         )
     except FetchError as exc:
         raise PictureError(str(exc)) from exc
@@ -206,9 +213,14 @@ def _decode_html(content: bytes, content_type: str) -> str:
 
 
 def find_pictures(page_url: str, *, limit: int = 3) -> list[bytes]:
+    expires = time.monotonic() + FIND_BUDGET
     try:
         page = safe_fetch(
-            page_url, max_bytes=PAGE_MAX_BYTES, accept="text/html", deny_networks=_deny_networks()
+            page_url,
+            max_bytes=PAGE_MAX_BYTES,
+            accept="text/html",
+            deny_networks=_deny_networks(),
+            timeout=FIND_BUDGET,
         )
     except FetchError as exc:
         raise PictureError(str(exc)) from exc
@@ -217,10 +229,17 @@ def find_pictures(page_url: str, *, limit: int = 3) -> list[bytes]:
     candidates = extract_candidates(_decode_html(page.content, page.content_type or ""), page.final_url)
     pictures: list[bytes] = []
     for url in candidates[:MAX_ATTEMPTS]:
+        left = expires - time.monotonic()
+        if left <= 0:
+            if not pictures:
+                raise PictureError("time budget exhausted")
+            break
         try:
-            pictures.append(download_image(url))
+            pictures.append(download_image(url, timeout=left))
         except PictureError:
             continue
         if len(pictures) >= limit:
             break
+    if not pictures and time.monotonic() >= expires:
+        raise PictureError("time budget exhausted")
     return pictures

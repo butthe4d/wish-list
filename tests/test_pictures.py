@@ -114,11 +114,83 @@ def test_find_pictures_tries_at_most_eight(app, local_server, allow_loopback, sh
     assert len(hits) == 8
 
 
-def test_find_pictures_decodes_declared_charset(app, local_server, allow_loopback, shop_routes):
-    page = '<meta charset="iso-8859-2"><img src="/zażółć.png">'.encode("iso-8859-2", "replace")
+def test_decode_html_uses_declared_charset():
+    text = "<img src='/zażółć.png'>"
+    raw = text.encode("iso-8859-2")
+    assert pictures._decode_html(raw, "text/html; charset=iso-8859-2") == text
+    assert pictures._decode_html(b'<meta charset="iso-8859-2">' + raw, "text/html").endswith(text)
+    assert pictures._decode_html(raw, "text/html") != text  # no declaration: utf-8 with replacement
+    assert pictures._decode_html(raw, "text/html; charset=nonsense")  # unknown charset falls back
+
+
+def test_find_pictures_follows_charset_decoded_url(app, local_server, allow_loopback, shop_routes):
+    page = '<meta charset="iso-8859-2"><img src="/zażółć.png">'.encode("iso-8859-2")
     route("/shop")(lambda h: _send(h, page, content_type="text/html"))
+    route("/za%C5%BC%C3%B3%C5%82%C4%87.png")(lambda h: _send(h, _png(), content_type="image/png"))
     with app.app_context():
-        assert find_pictures(local_server + "/shop") == []  # decodes without error, nothing to download
+        assert len(find_pictures(local_server + "/shop")) == 1
+
+
+def test_find_pictures_budget(app, local_server, allow_loopback, shop_routes, monkeypatch):
+    import time
+
+    monkeypatch.setattr(pictures, "FIND_BUDGET", 1)
+    page = "".join(f'<img src="/slow{n}.png">' for n in range(5))
+    route("/shop")(lambda h: _send(h, page.encode(), content_type="text/html"))
+    hits = []
+
+    def slow(h):
+        hits.append(h.path)
+        time.sleep(1.5)
+        _send(h, _png(), content_type="image/png")
+
+    for n in range(5):
+        route(f"/slow{n}.png")(slow)
+    started = time.monotonic()
+    with app.app_context(), pytest.raises(PictureError):
+        find_pictures(local_server + "/shop")
+    assert time.monotonic() - started < 2.5
+    assert len(hits) == 1
+
+
+def test_find_pictures_budget_keeps_collected(app, local_server, allow_loopback, shop_routes, monkeypatch):
+    import time
+
+    monkeypatch.setattr(pictures, "FIND_BUDGET", 1)
+    page = '<img src="/fast.png"><img src="/slow.png"><img src="/never.png">'
+    route("/shop")(lambda h: _send(h, page.encode(), content_type="text/html"))
+    route("/fast.png")(lambda h: _send(h, _png(), content_type="image/png"))
+    route("/slow.png")(lambda h: (time.sleep(1.5), _send(h, _png(), content_type="image/png")))
+    route("/never.png")(lambda h: _send(h, _png(), content_type="image/png"))
+    with app.app_context():
+        assert len(find_pictures(local_server + "/shop")) == 1
+
+
+def test_extract_survives_deeply_nested_json_ld():
+    nested = "[" * 100000 + "]" * 100000
+    html = f'<script type="application/ld+json">{nested}</script><img src="/after.jpg">'
+    assert extract_candidates(html, "https://s/") == ["https://s/after.jpg"]
+
+
+def test_skip_words_apply_to_file_name_only():
+    html = '<img src="https://iconic-store.com/silicon-cable.jpg"><img src="/img/icon-cart.png"><img src="/img/sprite.png">'
+    assert extract_candidates(html, "https://s/") == ["https://iconic-store.com/silicon-cable.jpg"]
+
+
+def test_srcset_with_commas_in_url():
+    html = '<img srcset="/w_200,h_200/x.jpg 1x, /w_400,h_400/x.jpg 2x">'
+    assert extract_candidates(html, "https://s/") == ["https://s/w_200,h_200/x.jpg"]
+
+
+def test_percentage_and_non_pixel_sizes_not_treated_as_small():
+    html = '<img src="/a.jpg" width="50%"><img src="/b.jpg" width="80px"><img src="/c.jpg" height="auto">'
+    assert extract_candidates(html, "https://s/") == ["https://s/a.jpg", "https://s/c.jpg"]
+
+
+def test_process_jpeg_large_uses_draft():
+    buf = io.BytesIO()
+    Image.new("RGB", (4000, 3000), "green").save(buf, "JPEG")
+    assert max(Image.open(io.BytesIO(process_image(buf.getvalue()))).size) == 800
 
 
 def test_find_pictures_page_not_html(app, local_server, allow_loopback, shop_routes):

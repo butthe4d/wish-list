@@ -341,13 +341,15 @@ def safe_fetch(
     max_bytes: int,
     accept: str,
     deny_networks: Sequence[IPNetwork] = (),
+    timeout: float | None = None,
 ) -> FetchResult:
     """Fetch ``url`` with SSRF protections; raise FetchError on any refusal or failure.
 
     ``deny_networks`` (operator's ``FETCH_DENY_CIDRS``) are refused on every hop
-    in addition to all non-public addresses.
+    in addition to all non-public addresses. ``timeout`` lowers the total deadline
+    (never raises it above ``TOTAL_TIMEOUT``).
     """
-    expires = time.monotonic() + TOTAL_TIMEOUT
+    expires = time.monotonic() + (TOTAL_TIMEOUT if timeout is None else min(TOTAL_TIMEOUT, timeout))
     current = url
     for _hop in range(MAX_REDIRECTS + 1):
         target = _parse_url(current)

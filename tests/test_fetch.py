@@ -602,3 +602,12 @@ def test_default_tls_context_verifies():
     ctx = fetch._tls_context()
     assert ctx.verify_mode == ssl.CERT_REQUIRED
     assert ctx.check_hostname is True
+
+
+def test_timeout_parameter_lowers_total_deadline(local_server, allow_loopback):
+    started = time.monotonic()
+    with pytest.raises(FetchError):
+        safe_fetch(local_server + "/slowchain1", max_bytes=1000, accept="*/*", timeout=0.3)
+    assert time.monotonic() - started < 2
+    # never raises the cap above TOTAL_TIMEOUT, and default is unchanged
+    assert safe_fetch(local_server + "/b", max_bytes=1000, accept="*/*", timeout=1000).content == b"hello b"
