@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-06 07:23-0500\n"
+"POT-Creation-Date: 2026-11-06 07:34-0500\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pl\n"
@@ -194,33 +194,34 @@ msgstr "Nieznany motyw."
 msgid "Unknown design."
 msgstr "Nieznany wygląd."
 
-#: wishlist/templates/_macros.html:28 wishlist/templates/shared_list.html:34
+#: wishlist/templates/_macros.html:29
 msgid "Reserved"
 msgstr "Zarezerwowane"
 
-#: wishlist/templates/_macros.html:33
+#: wishlist/templates/_macros.html:34
 msgid "Available"
 msgstr "Dostępne"
 
-#: wishlist/templates/_macros.html:35
+#: wishlist/templates/_macros.html:36 wishlist/templates/shared_item.html:37
 msgid "Someone is already getting this"
 msgstr "Ktoś już to kupuje"
 
-#: wishlist/templates/_macros.html:37
+#: wishlist/templates/_macros.html:38 wishlist/templates/shared_item.html:31
 msgid "Your reservation"
 msgstr "Twoja rezerwacja"
 
-#: wishlist/templates/_macros.html:46
+#: wishlist/templates/_macros.html:47
 msgid "Color theme"
 msgstr "Motyw kolorystyczny"
 
-#: wishlist/templates/base.html:8 wishlist/templates/base.html:24
+#: wishlist/templates/base.html:8 wishlist/templates/base.html:25
 msgid "Wishlist"
 msgstr "Lista życzeń"
 
 #: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
 #: wishlist/templates/admin/index.html:13
-#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:29
+#: wishlist/templates/admin/index.html:25
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:30
 msgid "Admin"
 msgstr "Administrator"
 
@@ -271,7 +272,6 @@ msgid "Add item"
 msgstr "Dodaj pozycję"
 
 #: wishlist/templates/home.html:40 wishlist/templates/list_owner.html:15
-#: wishlist/templates/shared_list.html:14
 msgid "Store link"
 msgstr "Link do sklepu"
 
@@ -315,7 +315,7 @@ msgid "Save"
 msgstr "Zapisz"
 
 #: wishlist/templates/admin/member_form.html:29
-#: wishlist/templates/item_form.html:32 wishlist/templates/shared_list.html:31
+#: wishlist/templates/item_form.html:32
 msgid "Cancel"
 msgstr "Anuluj"
 
@@ -341,7 +341,7 @@ msgid "Remove from list"
 msgstr "Usuń z listy"
 
 #: wishlist/templates/admin/member_lists.html:55
-#: wishlist/templates/list_owner.html:25 wishlist/templates/shared_list.html:40
+#: wishlist/templates/list_owner.html:25 wishlist/templates/shared_list.html:20
 msgid "This list has no items yet."
 msgstr "Ta lista nie ma jeszcze żadnych pozycji."
 
@@ -431,22 +431,41 @@ msgstr "Pod tym adresem nic nie ma."
 msgid "Go to the start page"
 msgstr "Przejdź do strony głównej"
 
-#: wishlist/templates/shared_list.html:5
+#: wishlist/templates/shared_item.html:8
+msgid "Close"
+msgstr "Zamknij"
+
+#: wishlist/templates/shared_item.html:14
+msgid "See in shop"
+msgstr "Zobacz w sklepie"
+
+#: wishlist/templates/shared_item.html:22
+msgid "Who's buying this?"
+msgstr "Kto kupuje ten prezent?"
+
+#: wishlist/templates/shared_item.html:27
+msgid "I'LL GET IT"
+msgstr "REZERWUJĘ"
+
+#: wishlist/templates/shared_item.html:28
 #, python-format
-msgid "Wishlist of %(name)s"
-msgstr "Lista życzeń: %(name)s"
+msgid "%(name)s won't see it's you."
+msgstr "%(name)s nie zobaczy, że to Ty."
 
-#: wishlist/templates/shared_list.html:20
-msgid "Your name"
-msgstr "Twoje imię"
+#: wishlist/templates/admin/member_lists.html:33
+#: wishlist/templates/admin/member_lists.html:49
+#: wishlist/templates/shared_item.html:34
+msgid "Cancel reservation"
+msgstr "Anuluj rezerwację"
 
-#: wishlist/templates/shared_list.html:25
-msgid "Reserve"
-msgstr "Zarezerwuj"
-
-#: wishlist/templates/shared_list.html:28
-msgid "Reserved by you"
-msgstr "Zarezerwowane przez Ciebie"
+#: wishlist/templates/shared_list.html:6
+#, python-format
+msgid ""
+"Gifts %(name)s is wishing for. Tap a gift to see more — %(name)s won't "
+"see who picked what."
+msgstr ""
+"Prezenty, o których marzy %(name)s. Dotknij prezentu, żeby zobaczyć więcej "
+"— %(name)s nie zobaczy, kto co wybrał."
 
 #: wishlist/templates/welcome.html:3
 msgid "Welcome"
@@ -465,11 +484,13 @@ msgid "Add member"
 msgstr "Dodaj członka"
 
 #: wishlist/templates/admin/index.html:13
+#: wishlist/templates/admin/index.html:23
 #: wishlist/templates/admin/member_form.html:12
 msgid "Email"
 msgstr "E-mail"
 
 #: wishlist/templates/admin/index.html:13
+#: wishlist/templates/admin/index.html:24
 #: wishlist/templates/admin/member_form.html:16
 msgid "Language"
 msgstr "Język"
@@ -584,11 +605,6 @@ msgstr ""
 msgid "Dismiss warning"
 msgstr "Odrzuć ostrzeżenie"
 
-#: wishlist/templates/admin/member_lists.html:33
-#: wishlist/templates/admin/member_lists.html:49
-msgid "Cancel reservation"
-msgstr "Anuluj rezerwację"
-
 #: wishlist/templates/admin/member_lists.html:35
 msgid "No warnings."
 msgstr "Brak ostrzeżeń."
@@ -644,7 +660,7 @@ msgstr "Nie udało się wysłać SMS-a."
 msgid "New share link created. The old link no longer works."
 msgstr "Utworzono nowy link do udostępniania. Stary link już nie działa."
 
-#: wishlist/views/shared.py:107
+#: wishlist/views/shared.py:135
 msgid "Sorry, someone just reserved that item."
 msgstr "Przepraszamy, ktoś właśnie zarezerwował ten prezent."
 
@@ -671,4 +687,16 @@ msgstr "Przepraszamy, ktoś właśnie zarezerwował ten prezent."
 #~ "„%(item)s”, którą %(reserver)s zarezerwował(a) "
 #~ "przez listę „%(list)s”. Warto dać znać"
 #~ " osobie %(reserver)s."
+
+#~ msgid "Wishlist of %(name)s"
+#~ msgstr "Lista życzeń: %(name)s"
+
+#~ msgid "Your name"
+#~ msgstr "Twoje imię"
+
+#~ msgid "Reserve"
+#~ msgstr "Zarezerwuj"
+
+#~ msgid "Reserved by you"
+#~ msgstr "Zarezerwowane przez Ciebie"
 

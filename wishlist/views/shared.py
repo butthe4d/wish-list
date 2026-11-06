@@ -43,14 +43,17 @@ def _shared_item(wl: Wishlist, item_id: int) -> Item:
     return item
 
 
-def _render(wl, error=None, error_item_id=None, notice=None, form=None, status=200):
+def _live_items(wl: Wishlist) -> list[Item]:
+    return [i for i in wl.items if i.deleted_at is None]
+
+
+def _guest_page(template, wl, status=200, **context):
+    """Render a guest page in the list's theme: never cached, guest cookie issued."""
     token = request.cookies.get(GUEST_COOKIE)
-    items = [i for i in wl.items if i.deleted_at is None]
-    rows = [(i, reservations.state_for_guest(i, token)) for i in items]
     response = make_response(
         render_template(
-            "shared_list.html", wl=wl, owner_first_name=wl.owner.name.split()[0], rows=rows,
-            error=error, error_item_id=error_item_id, notice=notice, form=form or {},
+            template, wl=wl, theme=wl.theme, owner_first_name=wl.owner.name.split()[0],
+            **context,
         ),
         status,
     )
@@ -58,6 +61,22 @@ def _render(wl, error=None, error_item_id=None, notice=None, form=None, status=2
     if token is None:
         _set_guest_cookie(response)
     return response
+
+
+def _render_grid(wl):
+    token = request.cookies.get(GUEST_COOKIE)
+    rows = [(i, reservations.state_for_guest(i, token)) for i in _live_items(wl)]
+    return _guest_page("shared_list.html", wl, rows=rows)
+
+
+def _render_item(wl, item, error=None, notice=None, form=None, status=200):
+    token = request.cookies.get(GUEST_COOKIE)
+    items = _live_items(wl)
+    return _guest_page(
+        "shared_item.html", wl, status, item=item, index=items.index(item) if item in items else 0,
+        state=reservations.state_for_guest(item, token),
+        error=error, notice=notice, form=form or {},
+    )
 
 
 @bp.get("/s/<key>")
@@ -83,7 +102,15 @@ def view(wl_id):
     wl = _shared_list(wl_id)
     if _is_owner(wl):
         return redirect(url_for("member.list_view", wl_id=wl.id))
-    return _render(wl)
+    return _render_grid(wl)
+
+
+@bp.get("/shared/<int:wl_id>/items/<int:item_id>")
+def item(wl_id, item_id):
+    wl = _shared_list(wl_id)
+    if _is_owner(wl):
+        return redirect(url_for("member.list_view", wl_id=wl.id))
+    return _render_item(wl, _shared_item(wl, item_id))
 
 
 @bp.post("/shared/<int:wl_id>/items/<int:item_id>/reserve")
@@ -101,10 +128,12 @@ def reserve(wl_id, item_id):
             s, item, wl, reserver_name=request.form.get("name", ""), guest_token=token
         )
     except ValidationError as e:
-        return _render(wl, error=e, error_item_id=item.id, form=request.form, status=400)
+        return _render_item(wl, item, error=e, form=request.form, status=400)
     except reservations.AlreadyReserved:
         s.expire_all()
-        return _render(wl, notice=_("Sorry, someone just reserved that item."), status=409)
+        return _render_item(
+            wl, item, notice=_("Sorry, someone just reserved that item."), status=409
+        )
     return redirect(url_for("shared.view", wl_id=wl.id))
 
 

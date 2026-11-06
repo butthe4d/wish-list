@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-06 07:23-0500\n"
+"POT-Creation-Date: 2026-11-06 07:34-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -174,33 +174,34 @@ msgstr ""
 msgid "Unknown design."
 msgstr ""
 
-#: wishlist/templates/_macros.html:28 wishlist/templates/shared_list.html:34
+#: wishlist/templates/_macros.html:29
 msgid "Reserved"
 msgstr ""
 
-#: wishlist/templates/_macros.html:33
+#: wishlist/templates/_macros.html:34
 msgid "Available"
 msgstr ""
 
-#: wishlist/templates/_macros.html:35
+#: wishlist/templates/_macros.html:36 wishlist/templates/shared_item.html:37
 msgid "Someone is already getting this"
 msgstr ""
 
-#: wishlist/templates/_macros.html:37
+#: wishlist/templates/_macros.html:38 wishlist/templates/shared_item.html:31
 msgid "Your reservation"
 msgstr ""
 
-#: wishlist/templates/_macros.html:46
+#: wishlist/templates/_macros.html:47
 msgid "Color theme"
 msgstr ""
 
-#: wishlist/templates/base.html:8 wishlist/templates/base.html:24
+#: wishlist/templates/base.html:8 wishlist/templates/base.html:25
 msgid "Wishlist"
 msgstr ""
 
 #: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
 #: wishlist/templates/admin/index.html:13
-#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:29
+#: wishlist/templates/admin/index.html:25
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:30
 msgid "Admin"
 msgstr ""
 
@@ -250,7 +251,6 @@ msgid "Add item"
 msgstr ""
 
 #: wishlist/templates/home.html:40 wishlist/templates/list_owner.html:15
-#: wishlist/templates/shared_list.html:14
 msgid "Store link"
 msgstr ""
 
@@ -294,7 +294,7 @@ msgid "Save"
 msgstr ""
 
 #: wishlist/templates/admin/member_form.html:29
-#: wishlist/templates/item_form.html:32 wishlist/templates/shared_list.html:31
+#: wishlist/templates/item_form.html:32
 msgid "Cancel"
 msgstr ""
 
@@ -320,7 +320,7 @@ msgid "Remove from list"
 msgstr ""
 
 #: wishlist/templates/admin/member_lists.html:55
-#: wishlist/templates/list_owner.html:25 wishlist/templates/shared_list.html:40
+#: wishlist/templates/list_owner.html:25 wishlist/templates/shared_list.html:20
 msgid "This list has no items yet."
 msgstr ""
 
@@ -410,21 +410,38 @@ msgstr ""
 msgid "Go to the start page"
 msgstr ""
 
-#: wishlist/templates/shared_list.html:5
+#: wishlist/templates/shared_item.html:8
+msgid "Close"
+msgstr ""
+
+#: wishlist/templates/shared_item.html:14
+msgid "See in shop"
+msgstr ""
+
+#: wishlist/templates/shared_item.html:22
+msgid "Who's buying this?"
+msgstr ""
+
+#: wishlist/templates/shared_item.html:27
+msgid "I'LL GET IT"
+msgstr ""
+
+#: wishlist/templates/shared_item.html:28
 #, python-format
-msgid "Wishlist of %(name)s"
+msgid "%(name)s won't see it's you."
 msgstr ""
 
-#: wishlist/templates/shared_list.html:20
-msgid "Your name"
+#: wishlist/templates/admin/member_lists.html:33
+#: wishlist/templates/admin/member_lists.html:49
+#: wishlist/templates/shared_item.html:34
+msgid "Cancel reservation"
 msgstr ""
 
-#: wishlist/templates/shared_list.html:25
-msgid "Reserve"
-msgstr ""
-
-#: wishlist/templates/shared_list.html:28
-msgid "Reserved by you"
+#: wishlist/templates/shared_list.html:6
+#, python-format
+msgid ""
+"Gifts %(name)s is wishing for. Tap a gift to see more — %(name)s won't "
+"see who picked what."
 msgstr ""
 
 #: wishlist/templates/welcome.html:3
@@ -444,11 +461,13 @@ msgid "Add member"
 msgstr ""
 
 #: wishlist/templates/admin/index.html:13
+#: wishlist/templates/admin/index.html:23
 #: wishlist/templates/admin/member_form.html:12
 msgid "Email"
 msgstr ""
 
 #: wishlist/templates/admin/index.html:13
+#: wishlist/templates/admin/index.html:24
 #: wishlist/templates/admin/member_form.html:16
 msgid "Language"
 msgstr ""
@@ -557,11 +576,6 @@ msgstr ""
 msgid "Dismiss warning"
 msgstr ""
 
-#: wishlist/templates/admin/member_lists.html:33
-#: wishlist/templates/admin/member_lists.html:49
-msgid "Cancel reservation"
-msgstr ""
-
 #: wishlist/templates/admin/member_lists.html:35
 msgid "No warnings."
 msgstr ""
@@ -617,7 +631,7 @@ msgstr ""
 msgid "New share link created. The old link no longer works."
 msgstr ""
 
-#: wishlist/views/shared.py:107
+#: wishlist/views/shared.py:135
 msgid "Sorry, someone just reserved that item."
 msgstr ""
 

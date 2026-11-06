@@ -1,39 +1,19 @@
 {% extends "base.html" %}
 {% block title %}{{ wl.name }}{% endblock %}
+{% block hero %}
+<div class="hero">
+  <h1>{{ wl.name }}</h1>
+  <p>{{ _("Gifts %(name)s is wishing for. Tap a gift to see more — %(name)s won't see who picked what.", name=owner_first_name) }}</p>
+  {% if wl.description %}<p class="hero-note">{{ wl.description }}</p>{% endif %}
+</div>
+{% endblock %}
 {% block content %}
-<h1>{{ wl.name }}</h1>
-<p>{{ _("Wishlist of %(name)s", name=owner_first_name) }}</p>
-{% if wl.description %}<p>{{ wl.description }}</p>{% endif %}
-{% if notice %}<p role="alert">{{ notice }}</p>{% endif %}
-
 {% if rows %}
-<ul>
+<ul class="tiles">
   {% for item, state in rows %}
-  <li>
-    <strong>{{ item.name }}</strong>
-    {% if item.link %}<a href="{{ item.link }}" rel="noopener noreferrer" target="_blank">{{ _("Store link") }}</a>{% endif %}
-    {% if item.description %}<br><small>{{ item.description }}</small>{% endif %}
-    {% if state == 'available' %}
-    <form method="post" novalidate action="{{ url_for('shared.reserve', wl_id=wl.id, item_id=item.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      {% if error and error_item_id == item.id %}<p role="alert">{{ error.message }}</p>{% endif %}
-      <label>{{ _("Your name") }}
-        <input type="text" name="name" maxlength="100" required
-               value="{{ form.get('name', '') if error_item_id == item.id else '' }}"
-               {% if error and error_item_id == item.id %}aria-invalid="true"{% endif %}>
-      </label>
-      <button type="submit">{{ _("Reserve") }}</button>
-    </form>
-    {% elif state == 'mine' %}
-    <p>{{ _("Reserved by you") }}</p>
-    <form method="post" novalidate action="{{ url_for('shared.cancel', wl_id=wl.id, item_id=item.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="secondary outline">{{ _("Cancel") }}</button>
-    </form>
-    {% else %}
-    <p>{{ _("Reserved") }}</p>
-    {% endif %}
-  </li>
+  <li>{{ m.tile(item, url_for('shared.item', wl_id=wl.id, item_id=item.id), state=state,
+                image_url=url_for('images.item_image', name=item.image) if item.image else None,
+                index=loop.index0, detail=True) }}</li>
   {% endfor %}
 </ul>
 {% else %}

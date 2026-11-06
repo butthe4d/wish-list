@@ -20,11 +20,12 @@
 
 {#- A gift tile. state: None (member pages, no reservation info), "available",
     "reserved" (by someone else) or "mine" (by this guest). Picture-less tiles cycle
-    the theme's --tile-1..4 colors by index. -#}
-{% macro tile(item, href, state=None, image_url=None, index=0) -%}
-<a class="tile{% if state %} is-{{ state }}{% endif %}" href="{{ href }}">
+    the theme's --tile-1..4 colors by index. detail=True marks the link for dialog.js,
+    which opens the linked page's .item-detail in a dialog. -#}
+{% macro tile(item, href, state=None, image_url=None, index=0, detail=False) -%}
+<a class="tile{% if state %} is-{{ state }}{% endif %}" href="{{ href }}"{% if detail %} data-detail{% endif %}>
   <span class="tile-media"{% if not image_url %} style="background-color: var(--tile-{{ index % 4 + 1 }})"{% endif %}>
-    {%- if image_url %}<img src="{{ image_url }}" alt="" loading="lazy">{% else %}{{ icon("gift") }}{% endif -%}
+    {%- if image_url %}<img src="{{ image_url }}" alt="{{ item.name }}" loading="lazy">{% else %}{{ icon("gift") }}{% endif -%}
     {%- if state == "reserved" %}<span class="tile-ribbon">{{ _("Reserved")|upper }}</span>{% endif -%}
     {%- if state == "mine" %}<span class="tile-badge">{{ icon("check") }}</span>{% endif -%}
   </span>

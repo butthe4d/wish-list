@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} · {{ wl.name }}{% endblock %}
+{% block content %}
+{% set grid_url = url_for('shared.view', wl_id=wl.id) %}
+<div class="item-detail is-{{ state }}">
+  <div class="detail-media"{% if not item.image %} style="background-color: var(--tile-{{ index % 4 + 1 }})"{% endif %}>
+    {%- if item.image %}<img src="{{ url_for('images.item_image', name=item.image) }}" alt="{{ item.name }}" loading="lazy">{% else %}{{ m.icon("gift") }}{% endif -%}
+    <a class="detail-close" href="{{ grid_url }}" data-detail-close aria-label="{{ _('Close') }}">{{ m.icon("close") }}</a>
+  </div>
+  <div class="detail-body">
+    <h2 id="detail-title">{{ item.name }}</h2>
+    {% if item.description %}<p class="detail-description">{{ item.description }}</p>{% endif %}
+    {% if item.link %}
+    <p class="detail-shop"><a href="{{ item.link }}" rel="noopener noreferrer" target="_blank">{{ _("See in shop") }} {{ m.icon("external") }}</a></p>
+    {% endif %}
+    {% if notice %}<p role="alert">{{ notice }}</p>{% endif %}
+
+    {% if state == "available" %}
+    <form method="post" novalidate hx-boost="false" action="{{ url_for('shared.reserve', wl_id=wl.id, item_id=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if error %}<p role="alert" id="name-error">{{ error.message }}</p>{% endif %}
+      <label>{{ _("Who's buying this?") }}
+        <input type="text" name="name" maxlength="100" required autocomplete="name"
+               value="{{ form.get('name', '') }}"
+               {% if error %}aria-invalid="true" aria-describedby="name-error"{% endif %}>
+      </label>
+      <button type="submit">{{ _("I'LL GET IT") }}</button>
+      <p class="detail-note">{{ _("%(name)s won't see it's you.", name=owner_first_name) }}</p>
+    </form>
+    {% elif state == "mine" %}
+    <p class="detail-state is-mine">{{ m.icon("check") }} {{ _("Your reservation") }}</p>
+    <form method="post" novalidate hx-boost="false" action="{{ url_for('shared.cancel', wl_id=wl.id, item_id=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="outline">{{ _("Cancel reservation") }}</button>
+    </form>
+    {% else %}
+    <p class="detail-state is-reserved">{{ m.icon("lock") }} {{ _("Someone is already getting this") }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
