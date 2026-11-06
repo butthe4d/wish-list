@@ -171,7 +171,8 @@ def list_edit(wl_id):
     wl = catalog.get_owned_wishlist(s, user, wl_id)
     try:
         catalog.update_wishlist(
-            s, wl, name=request.form.get("name", ""), description=request.form.get("description")
+            s, wl, name=request.form.get("name", ""),
+            description=request.form.get("description"), theme=wl.theme,
         )
     except ValidationError as e:
         s.rollback()

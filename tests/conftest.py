@@ -34,6 +34,7 @@ def app_config(tmp_path):
         base_url="https://wish.example",
         secret_key=TEST_SECRET,
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
+        data_dir=str(tmp_path),
     )
 
 

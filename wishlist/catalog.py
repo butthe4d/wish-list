@@ -13,6 +13,7 @@ from .config import get_base_url
 from .errors import ValidationError
 from .models import Item, User, Wishlist, utcnow
 from .notify import get_mailer
+from .themes import get_settings, validate_theme
 from . import reservations
 from .reservations import notify_orphan, orphan_state
 
@@ -151,17 +152,23 @@ def _clean_wishlist_fields(name: str, description: str | None):
     return name, description
 
 
-def create_wishlist(s: Session, owner: User, *, name: str, description: str | None) -> Wishlist:
+def create_wishlist(
+    s: Session, owner: User, *, name: str, description: str | None, theme: str | None = None
+) -> Wishlist:
     name, description = _clean_wishlist_fields(name, description)
-    wl = Wishlist(owner_id=owner.id, name=name, description=description)
+    theme = validate_theme(theme) if theme is not None else get_settings(s).default_theme
+    wl = Wishlist(owner_id=owner.id, name=name, description=description, theme=theme)
     s.add(wl)
     s.commit()
     return wl
 
 
-def update_wishlist(s: Session, wl: Wishlist, *, name: str, description: str | None) -> Wishlist:
+def update_wishlist(
+    s: Session, wl: Wishlist, *, name: str, description: str | None, theme: str
+) -> Wishlist:
     name, description = _clean_wishlist_fields(name, description)
-    wl.name, wl.description = name, description
+    theme = validate_theme(theme)
+    wl.name, wl.description, wl.theme = name, description, theme
     wl.updated_at = utcnow()
     s.commit()
     return wl

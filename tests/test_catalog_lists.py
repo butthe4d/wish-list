@@ -41,11 +41,11 @@ def test_create_wishlist_trims_and_normalizes(db, user):
 )
 def test_wishlist_validation(db, user, name, description, field):
     with pytest.raises(ValidationError) as e:
-        create_wishlist(db, user, name=name, description=description)
+        create_wishlist(db, user, name=name, description=description, theme="classic")
     assert e.value.field == field
     wl = create_wishlist(db, user, name="Ok", description=None)
     with pytest.raises(ValidationError):
-        update_wishlist(db, wl, name=name, description=description)
+        update_wishlist(db, wl, name=name, description=description, theme="classic")
 
 
 def test_boundary_lengths_accepted(db, user):
@@ -114,7 +114,7 @@ def test_mutators_persist(db, fresh, user):
     wl = create_wishlist(db, user, name="L", description="d")
     wl_id = wl.id
     assert fresh.get(Wishlist, wl_id).name == "L"
-    update_wishlist(db, wl, name="M", description=None)
+    update_wishlist(db, wl, name="M", description=None, theme="classic")
     got = fresh.get(Wishlist, wl_id)
     assert (got.name, got.description) == ("M", None)
     item = _item(db, user)

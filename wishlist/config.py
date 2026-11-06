@@ -31,6 +31,11 @@ class Config:
     smtp_security: str = "starttls"
     gsmservice_token: str | None = None
     gsmservice_sender: str | None = None
+    data_dir: str = "/data"
+
+    @property
+    def images_dir(self) -> str:
+        return f"{self.data_dir}/images"
 
     @property
     def email_enabled(self) -> bool:
@@ -88,6 +93,7 @@ class Config:
             smtp_security=security,
             gsmservice_token=get("GSMSERVICE_TOKEN"),
             gsmservice_sender=get("GSMSERVICE_SENDER"),
+            data_dir=(get("DATA_DIR") or "/data").rstrip("/") or "/",
         )
 
 

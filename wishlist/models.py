@@ -52,6 +52,7 @@ class Item(Base):
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(String(2000))
     link: Mapped[str | None] = mapped_column(String(2000))
+    image: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -75,6 +76,7 @@ class Wishlist(Base):
     name: Mapped[str] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(String(500))
     share_version: Mapped[int] = mapped_column(default=1)
+    theme: Mapped[str] = mapped_column(String(20), default="classic", server_default="classic")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -118,3 +120,13 @@ class ShareLog(Base):
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     wishlist: Mapped[Wishlist | None] = relationship(back_populates="share_logs")
+
+
+class AppSettings(Base):
+    """Single-row table (id is always 1) with admin-chosen app-wide settings."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    design: Mapped[str] = mapped_column(String(20), default="a")
+    default_theme: Mapped[str] = mapped_column(String(20), default="classic")
