@@ -1,7 +1,7 @@
 from flask import Blueprint, abort, current_app, flash, make_response, redirect, render_template, request, url_for
 from flask_babel import gettext as _
 
-from .. import members, reservations
+from .. import members, reservations, themes
 from ..auth import admin_required, current_user
 from ..config import LANGUAGE_NAMES
 from ..db import get_session
@@ -49,15 +49,37 @@ def _page(template, reveal_shown: bool, **ctx):
     return response
 
 
-@bp.get("/")
-@admin_required
-def index():
+def _render_index(settings_form=None, settings_error=None):
     s = get_session()
     users = s.query(User).order_by(User.name, User.id).all()
+    if settings_form is None:
+        st = themes.get_settings(s)
+        settings_form = {"design": st.design, "default_theme": st.default_theme}
     return _page(
         "admin/index.html", False, members=users, me=current_user(),
         needs_attention=reservations.owners_needing_attention(s, current_user()),
+        settings_form=settings_form, settings_error=settings_error,
     )
+
+
+@bp.get("/")
+@admin_required
+def index():
+    return _render_index()
+
+
+@bp.post("/settings")
+@admin_required
+def settings_update():
+    s = get_session()
+    form = {k: request.form.get(k, "") for k in ("design", "default_theme")}
+    try:
+        themes.update_settings(s, **form)
+    except ValidationError as e:
+        s.rollback()
+        return _render_index(form, e)
+    flash(_("Saved."))
+    return redirect(url_for("admin.index"))
 
 
 @bp.get("/members/<int:uid>")

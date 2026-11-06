@@ -10,7 +10,7 @@ from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
-from .db import init_db
+from .db import get_session, init_db
 from .logredact import RedactingFilter
 from .urls import BoundedIntConverter
 
@@ -67,10 +67,20 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
     from . import auth
     from .views import admin, images, member, shared
     from .i18n import init_i18n
+    from .themes import DESIGNS, THEMES, get_settings
 
     init_i18n(app)
 
     app.context_processor(lambda: {"current_user": auth.current_user})
+
+    @app.context_processor
+    def design_and_theme():
+        settings = get_settings(get_session())
+        return {"page_theme": settings.default_theme, "design": settings.design}
+
+    # globals, not context: imported macros (_macros.html) only see globals
+    app.jinja_env.globals.update(THEMES=THEMES, DESIGNS=DESIGNS)
+
     app.register_blueprint(auth.bp)
     app.register_blueprint(admin.bp)
     app.register_blueprint(member.bp)

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-06 07:13-0500\n"
+"POT-Creation-Date: 2026-11-06 07:23-0500\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -175,13 +175,33 @@ msgstr ""
 msgid "Unknown design."
 msgstr ""
 
-#: wishlist/templates/base.html:6 wishlist/templates/base.html:16
+#: wishlist/templates/_macros.html:28 wishlist/templates/shared_list.html:34
+msgid "Reserved"
+msgstr ""
+
+#: wishlist/templates/_macros.html:33
+msgid "Available"
+msgstr ""
+
+#: wishlist/templates/_macros.html:35
+msgid "Someone is already getting this"
+msgstr ""
+
+#: wishlist/templates/_macros.html:37
+msgid "Your reservation"
+msgstr ""
+
+#: wishlist/templates/_macros.html:46
+msgid "Color theme"
+msgstr ""
+
+#: wishlist/templates/base.html:8 wishlist/templates/base.html:24
 msgid "Wishlist"
 msgstr ""
 
 #: wishlist/templates/admin/index.html:2 wishlist/templates/admin/index.html:4
-#: wishlist/templates/admin/index.html:12
-#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:18
+#: wishlist/templates/admin/index.html:13
+#: wishlist/templates/admin/member_form.html:26 wishlist/templates/base.html:29
 msgid "Admin"
 msgstr ""
 
@@ -235,11 +255,11 @@ msgstr ""
 msgid "Store link"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:26 wishlist/templates/home.html:43
+#: wishlist/templates/admin/index.html:27 wishlist/templates/home.html:43
 msgid "Edit"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:38 wishlist/templates/home.html:46
+#: wishlist/templates/admin/index.html:39 wishlist/templates/home.html:46
 msgid "Delete"
 msgstr ""
 
@@ -255,7 +275,7 @@ msgstr ""
 msgid "New item"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:12
+#: wishlist/templates/admin/index.html:13
 #: wishlist/templates/admin/member_form.html:8
 #: wishlist/templates/item_form.html:8
 msgid "Name"
@@ -408,10 +428,6 @@ msgstr ""
 msgid "Reserved by you"
 msgstr ""
 
-#: wishlist/templates/shared_list.html:34
-msgid "Reserved"
-msgstr ""
-
 #: wishlist/templates/welcome.html:3
 msgid "Welcome"
 msgstr ""
@@ -428,34 +444,54 @@ msgstr ""
 msgid "Add member"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:12
+#: wishlist/templates/admin/index.html:13
 #: wishlist/templates/admin/member_form.html:12
 msgid "Email"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:12
+#: wishlist/templates/admin/index.html:13
 #: wishlist/templates/admin/member_form.html:16
 msgid "Language"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:20
+#: wishlist/templates/admin/index.html:21
 msgid "Needs attention"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:24
+#: wishlist/templates/admin/index.html:25
 msgid "Yes"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:24
+#: wishlist/templates/admin/index.html:25
 msgid "No"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:29
+#: wishlist/templates/admin/index.html:30
 msgid "Change key and send new link"
 msgstr ""
 
-#: wishlist/templates/admin/index.html:36
+#: wishlist/templates/admin/index.html:37
 msgid "Also delete their items and lists"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:51
+msgid "Settings"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:55
+msgid "Design"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:62
+msgid "Default color theme"
+msgstr ""
+
+#: wishlist/templates/admin/index.html:69
+msgid "Used for new lists and for pages that belong to no list."
+msgstr ""
+
+#: wishlist/templates/admin/index.html:70
+msgid "Save settings"
 msgstr ""
 
 #: wishlist/templates/admin/link_once.html:2
@@ -540,23 +576,23 @@ msgstr ""
 msgid "No lists yet."
 msgstr ""
 
-#: wishlist/views/admin.py:98
-msgid "Reservation cancelled."
-msgstr ""
-
-#: wishlist/views/admin.py:107
-msgid "Warning dismissed."
-msgstr ""
-
-#: wishlist/views/admin.py:148
+#: wishlist/views/admin.py:81 wishlist/views/admin.py:170
 msgid "Saved."
 msgstr ""
 
-#: wishlist/views/admin.py:162
+#: wishlist/views/admin.py:120
+msgid "Reservation cancelled."
+msgstr ""
+
+#: wishlist/views/admin.py:129
+msgid "Warning dismissed."
+msgstr ""
+
+#: wishlist/views/admin.py:184
 msgid "Tick the confirmation box to delete a member."
 msgstr ""
 
-#: wishlist/views/admin.py:169
+#: wishlist/views/admin.py:191
 msgid "Member deleted."
 msgstr ""
 

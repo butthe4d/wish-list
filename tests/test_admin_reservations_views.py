@@ -15,7 +15,7 @@ def _admin(db):
 
 
 def _reserved(db, owner, name="Gift"):
-    wl = create_wishlist(db, owner, name="Birthday", description=None)
+    wl = create_wishlist(db, owner, name="BdayParty", description=None)
     item = create_item(db, owner, name=name, description=None, link=None)
     add_items_to_wishlist(db, wl, [item.id])
     reserve(db, item, wl, reserver_name="Mom", guest_token="t")
@@ -49,7 +49,7 @@ def test_member_page_hidden_until_reveal(admin_client, db, member, whose):
     _reserved(db, owner)
     r = admin_client.get(f"/admin/members/{owner.id}")
     text = _assert_hidden(r, "Mom")
-    assert "Birthday" in text  # lists and items are still shown
+    assert "BdayParty" in text  # lists and items are still shown
     assert f"/admin/members/{owner.id}?reveal=1" in text
     assert "no-store" not in r.headers.get("Cache-Control", "")
     text = _assert_revealed(admin_client.get(f"/admin/members/{owner.id}?reveal=1"))
@@ -71,7 +71,7 @@ def test_index_shows_only_neutral_marker(admin_client, db, member):
     delete_item(db, mine)
     delete_item(db, theirs)
     r = admin_client.get("/admin/")
-    text = _assert_hidden(r, "Mom", "MyGift", "TheirGift", "Birthday")
+    text = _assert_hidden(r, "Mom", "MyGift", "TheirGift", "BdayParty")
     assert "Show reservations" not in text
     assert text.count("Needs attention") == 1  # the member's row, not the admin's own
     row = text[text.index(f"/admin/members/{member.id}"):]

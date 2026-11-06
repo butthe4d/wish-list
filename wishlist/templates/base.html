@@ -1,24 +1,37 @@
+{% import "_macros.html" as m -%}
+{% set active_theme = theme or page_theme -%}
 <!doctype html>
-<html lang="{{ get_locale() }}">
+<html lang="{{ get_locale() }}" data-theme="{{ active_theme }}" data-design="{{ design }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ _("Wishlist") }}{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='pico.classless.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-' ~ design ~ '.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='themes.css') }}">
   <script src="{{ url_for('static', filename='htmx.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='copy.js') }}" defer></script>
 </head>
 <body hx-boost="true">
-  <header>
-    {% block nav %}
-    <nav>
-      <ul><li><strong><a href="/">{{ _("Wishlist") }}</a></strong></li></ul>
-      {% if current_user() and current_user().is_admin %}
-      <ul><li><a href="{{ url_for('admin.index') }}">{{ _("Admin") }}</a></li></ul>
+  <header class="site-header">
+    <div class="site-bar">
+      {% set brand_icon = {"christmas": "tree", "birthday": "cake"}.get(active_theme, "gift") %}
+      {% if current_user() %}
+      <a class="brand" href="/">
+      {% else %}
+      <span class="brand">
       {% endif %}
-    </nav>
-    {% endblock %}
+        <span class="brand-mark">{{ m.icon(brand_icon) }}</span>
+        <span class="brand-label">{{ _("Wishlist")|upper }}</span>
+      {% if current_user() %}</a>{% else %}</span>{% endif %}
+      {% block nav %}
+      {% if current_user() and current_user().is_admin %}
+      <nav class="site-nav">
+        <a href="{{ url_for('admin.index') }}">{{ _("Admin") }}</a>
+      </nav>
+      {% endif %}
+      {% endblock %}
+    </div>
+    {% block hero %}{% endblock %}
   </header>
   <main>
     {% for message in get_flashed_messages() %}
@@ -26,12 +39,13 @@
     {% endfor %}
     {% block content %}{% endblock %}
   </main>
-  <footer>
-    <form method="post" novalidate action="/lang" hx-boost="false">
+  <footer class="site-footer">
+    <form method="post" novalidate action="/lang" hx-boost="false" class="lang-switch">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') if request.method == 'GET' else (url_for('shared.view', wl_id=request.view_args['wl_id']) if request.endpoint and request.endpoint.startswith('shared.') and request.view_args and 'wl_id' in request.view_args else '/') }}">
       {% for code, label in language_names.items() %}
-      <button type="submit" name="lang" value="{{ code }}" class="secondary outline">{{ label }}</button>
+      <button type="submit" name="lang" value="{{ code }}" class="secondary outline"
+              {% if code == get_locale()|string %}aria-current="true"{% endif %}>{{ label }}</button>
       {% endfor %}
     </form>
   </footer>

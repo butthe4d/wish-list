@@ -118,7 +118,7 @@ Run locally with `BASE_URL=http://localhost:8000 SECRET_KEY=$(python -c "import 
 
 ## Licenses
 
-The app is licensed under the [Apache License 2.0](LICENSE). It vendors two front-end assets:
+The app is licensed under the [Apache License 2.0](LICENSE). It vendors these front-end assets:
 
 - [htmx](https://htmx.org) 2.0.4, 0BSD license
-- [Pico CSS](https://picocss.com) 2.1.1 (classless), MIT license
+- [Source Sans 3](https://github.com/adobe-fonts/source-sans) (weights 300/400/600/900, latin and latin-ext subsets, from [Fontsource](https://fontsource.org) 5), SIL Open Font License 1.1 — see `wishlist/static/fonts/OFL.txt`
