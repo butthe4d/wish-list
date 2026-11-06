@@ -17,7 +17,9 @@ Features: personal login links (no passwords), email and optional SMS sharing, i
 3. Open the printed `Admin link: ...` in your browser. That link is your login, so keep it private. The first admin is created only when the database is empty.
 4. In the admin page, add the other members. Each gets their own personal link, shown on screen and emailed if SMTP is configured.
 
-The database lives in `./data/wishlist.db` and item pictures in `./data/images/`. Migrations run automatically at every start. The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
+The database lives in `./data/wishlist.db` and item pictures in `./data/images/`. Migrations run automatically at every start.The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
+
+**Upgrading:** back up `data/` first (see [Backup](#backup)). The migration that adds pictures and themes runs automatically on the first start of the new version, and existing lists start with the Classic theme. Going back to an older image after upgrading is not supported.
 
 ## Configuration
 
@@ -75,7 +77,7 @@ Phone numbers are entered in international format, for example `+48600100200`; s
 
 ## Pictures and fetch protections
 
-When a member adds an item with a shop link, the server can look for product pictures on that page and offer up to three to choose from. The member can also paste a direct image URL, or use no picture. The chosen picture is downloaded once, resized (long side at most 800 px), re-encoded as a JPEG with metadata stripped, and stored under `DATA_DIR/images` with a random name. Guests' browsers never contact the shop or any third party: pictures (and fonts) are served by the app itself. A picture is served only while its item exists, and is deleted with the item or its member. Candidate pictures that were not chosen are kept in `DATA_DIR/images/tmp` and removed after about an hour.
+When a member adds an item with a shop link, the server can look for product pictures on that page and offer up to three to choose from. The member can also paste a direct image URL, or use no picture. The chosen picture is downloaded once, resized (long side at most 800 px), re-encoded as a JPEG with metadata stripped, and stored under `DATA_DIR/images` with a random name. Guests' browsers never contact the shop or any third party: pictures (and fonts) are served by the app itself. A picture is served only while its item is live. Deleting an item removes its picture file, except that an item with a reservation is only soft-deleted: its picture file stays on disk (and is not served) until an admin cancels that reservation or the member is deleted. Candidate pictures that were not chosen are kept in `DATA_DIR/images/tmp`; they are not cleaned on a timer, but the next time anyone searches for pictures, candidates older than an hour are removed.
 
 Because the server makes requests to addresses members type in, it is restricted:
 
@@ -86,7 +88,7 @@ Because the server makes requests to addresses members type in, it is restricted
 
 ### FETCH_DENY_CIDRS
 
-Private ranges are blocked automatically, but some of your own addresses look public to the app: the global IPv6 prefix of a LAN with native IPv6 (every device, including your router and other services, has an address in it), and the public IPv4 address or DDNS name of your home connection (with hairpin NAT it reaches your router and the services behind it from inside). A link pointing at them would let a member make the server talk to your internal services. List them in `FETCH_DENY_CIDRS`, comma or space separated:
+Private ranges are blocked automatically, but some of your own addresses look public to the app: the global IPv6 prefix of a LAN with native IPv6 (every device, including your router and other services, has an address in it), and the public IPv4 address or DDNS name of your home connection (with hairpin NAT it reaches your router and the services behind it from inside). A link pointing at them would let a member make the server talk to your internal services. List them in `FETCH_DENY_CIDRS`, comma or space separated (a bare address such as `203.0.113.7` is treated as `/32`):
 
 ```yaml
 FETCH_DENY_CIDRS: "2001:db8:1234::/48, 203.0.113.7/32"
@@ -124,7 +126,7 @@ sqlite3 data/wishlist.db ".backup 'wishlist-backup.db'"
 cp -r data/images wishlist-backup-images
 ```
 
-A database restored without its pictures works, but those items show no picture.
+Keep the database backup and the images copy together. A database restored without its pictures works, but those items show no picture.
 
 Keep your `SECRET_KEY` with the backup, or share links will have to be sent again.
 

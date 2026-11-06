@@ -28,7 +28,7 @@ Self-hosted Flask household wishlist app (Apache-2.0). Python 3.12+, SQLAlchemy 
 - `Referrer-Policy: no-referrer` on all responses; store links use `rel="noopener noreferrer" target="_blank"`.
 - Keys never reach logs (gunicorn logger redacts `/u/<key>`, `/s/<key>`).
 - Every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`.
-- Pictures: never hotlinked (guests' browsers load only app-served files); stored as re-encoded JPEG with random names; served only for live items (deleted items and orphan files 404); on hard deletes (item, member) files are removed after the DB commit; temp candidates are cleaned after ~1 h.
+- Pictures: never hotlinked (guests' browsers load only app-served files); stored as re-encoded JPEG with random names; served only for live items (deleted items and orphan files 404); on hard deletes (item, member) files are removed after the DB commit; an item with a reservation is only soft-deleted, so its file stays (unserved) until the reservation is cancelled or the member is deleted; temp candidates are removed by `cleanup_temp` on the next picture search once older than 1 h (no timer).
 - All outbound fetches go through `fetch.safe_fetch` (http/https, ports 80/443, public addresses re-checked on every redirect, `FETCH_DENY_CIDRS`, size and time caps); never call `requests`/`urllib` directly for user-supplied URLs.
 - SMS and email are optional; absent sender means no UI and 404 on SMS routes.
 
