@@ -81,6 +81,20 @@ def _to_host(h):
     _redirect(h, f"http://shop.example:{h.server.server_port}/b")
 
 
+@route("/bad-location")
+def _bad_location(h):
+    _redirect(h, "http://[::1/")
+
+
+for _i in range(1, 4):
+    def _slow_hop(h, n=_i):
+        time.sleep(0.3)
+        _redirect(h, f"/slowchain{n + 1}")
+
+    route(f"/slowchain{_i}")(_slow_hop)
+route("/slowchain4")(lambda h: _send(h, b"slow chain done"))
+
+
 @route("/evil-port")
 def _evil_port(h):
     _redirect(h, "http://example.com:8080/")
@@ -479,7 +493,106 @@ def test_constants():
     assert fetch.IMAGE_MAX_BYTES == 10_000_000
     assert fetch.TIMEOUT == 8
     assert fetch.MAX_REDIRECTS == 3
+    assert fetch.TOTAL_TIMEOUT == 20
     assert fetch.ALLOWED_PORTS == frozenset({80, 443})
+
+
+def test_malformed_redirect_location(local_server, allow_loopback):
+    with pytest.raises(FetchError):
+        safe_fetch(local_server + "/bad-location", max_bytes=1000, accept="*/*")
+
+
+def test_watchdog_start_failure_is_fetch_error(local_server, allow_loopback, monkeypatch):
+    def fail(self):
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Timer, "start", fail)
+    with pytest.raises(FetchError):
+        safe_fetch(local_server + "/b", max_bytes=1000, accept="*/*")
+
+
+def test_total_timeout_across_redirects(local_server, allow_loopback, monkeypatch):
+    # Every hop is well within TIMEOUT, but the chain as a whole is not.
+    monkeypatch.setattr(fetch, "TOTAL_TIMEOUT", 0.5)
+    started = time.monotonic()
+    with pytest.raises(FetchError):
+        safe_fetch(local_server + "/slowchain1", max_bytes=1000, accept="*/*")
+    assert time.monotonic() - started < 1.5
+
+
+def test_slow_redirect_chain_within_total_timeout(local_server, allow_loopback):
+    result = safe_fetch(local_server + "/slowchain1", max_bytes=1000, accept="*/*")
+    assert result.content == b"slow chain done"
+
+
+# --- operator deny-list -------------------------------------------------------------
+
+
+def _resolve_to(monkeypatch, *addresses):
+    calls = []
+
+    def fake(host, port, *a, **k):
+        calls.append(host)
+        return [
+            (socket.AF_INET6 if ":" in a_ else socket.AF_INET, socket.SOCK_STREAM, 6, "", (a_, port))
+            for a_ in addresses
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake)
+    return calls
+
+
+def _connect_forbidden(monkeypatch):
+    def boom(self):
+        raise AssertionError("must not connect")
+
+    monkeypatch.setattr(fetch._PinnedHTTPConnection, "connect", boom)
+
+
+@pytest.mark.parametrize(
+    "addresses,deny",
+    [
+        (["8.8.8.8"], ["8.8.8.8/32"]),
+        (["1.1.1.1", "8.8.8.8"], ["8.8.8.8/32"]),
+        (["2001:4860:4860::8888"], ["2001:4860:4860::/64"]),
+        (["::ffff:8.8.8.8"], ["8.8.8.8/32"]),
+        (["64:ff9b::808:808"], ["8.8.8.8/32"]),
+        (["2001:4860:4860::8888"], ["1.1.1.0/24", "2001:4860:4860::/64"]),
+    ],
+)
+def test_deny_networks_refuse_public_addresses(monkeypatch, addresses, deny):
+    _resolve_to(monkeypatch, *addresses)
+    _connect_forbidden(monkeypatch)
+    with pytest.raises(FetchError):
+        safe_fetch("http://shop.example/", max_bytes=1000, accept="*/*",
+                   deny_networks=[ipaddress.ip_network(n) for n in deny])
+
+
+def test_deny_networks_apply_to_ip_literal_urls(monkeypatch):
+    _connect_forbidden(monkeypatch)
+    with pytest.raises(FetchError):
+        safe_fetch("http://8.8.8.8/", max_bytes=1000, accept="*/*",
+                   deny_networks=[ipaddress.ip_network("8.8.8.8/32")])
+
+
+def test_deny_networks_do_not_block_other_addresses(local_server, allow_loopback):
+    deny = [ipaddress.ip_network("8.8.8.8/32"), ipaddress.ip_network("2001:4860:4860::/64")]
+    result = safe_fetch(local_server + "/b", max_bytes=1000, accept="*/*", deny_networks=deny)
+    assert result.content == b"hello b"
+
+
+def test_deny_networks_apply_to_redirect_hops(local_server, allow_loopback, monkeypatch):
+    calls = _resolve_to(monkeypatch, "8.8.8.8")
+    with pytest.raises(FetchError):
+        safe_fetch(local_server + "/to-host", max_bytes=1000, accept="*/*",
+                   deny_networks=[ipaddress.ip_network("8.8.8.8/32")])
+    assert calls == ["shop.example"]
+
+
+def test_deny_networks_can_refuse_first_hop(local_server, allow_loopback):
+    with pytest.raises(FetchError):
+        safe_fetch(local_server + "/b", max_bytes=1000, accept="*/*",
+                   deny_networks=[ipaddress.ip_network("127.0.0.1/32")])
 
 
 # --- HTTPS: pinned IP, SNI and certificate checked against the hostname ----------

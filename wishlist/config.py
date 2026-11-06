@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ipaddress
+import re
 from dataclasses import dataclass
 from typing import Mapping
 
@@ -32,6 +34,13 @@ class Config:
     gsmservice_token: str | None = None
     gsmservice_sender: str | None = None
     data_dir: str = "/data"
+    # Extra networks the fetcher must never reach, e.g. the household's own
+    # public IPv4 (hairpin NAT) or native IPv6 prefix; normalized CIDR strings.
+    fetch_deny_cidrs: tuple[str, ...] = ()
+
+    @property
+    def fetch_deny_networks(self) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+        return tuple(ipaddress.ip_network(c, strict=False) for c in self.fetch_deny_cidrs)
 
     @property
     def images_dir(self) -> str:
@@ -77,6 +86,17 @@ class Config:
         except ValueError:
             raise ConfigError(f"SMTP_PORT must be an integer, got {port_raw!r}") from None
 
+        deny_cidrs = []
+        for raw in re.split(r"[\s,]+", get("FETCH_DENY_CIDRS") or ""):
+            if not raw:
+                continue
+            try:
+                deny_cidrs.append(str(ipaddress.ip_network(raw, strict=False)))
+            except ValueError:
+                raise ConfigError(
+                    f"FETCH_DENY_CIDRS must be IP networks (e.g. 203.0.113.7/32), got {raw!r}"
+                ) from None
+
         smtp_user = get("SMTP_USER")
         return cls(
             base_url=get("BASE_URL").rstrip("/"),
@@ -94,6 +114,7 @@ class Config:
             gsmservice_token=get("GSMSERVICE_TOKEN"),
             gsmservice_sender=get("GSMSERVICE_SENDER"),
             data_dir=(get("DATA_DIR") or "/data").rstrip("/") or "/",
+            fetch_deny_cidrs=tuple(deny_cidrs),
         )
 
 

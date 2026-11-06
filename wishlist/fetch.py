@@ -10,7 +10,11 @@ NAS, cloud metadata endpoints, ...):
   HTTPS still sends SNI and verifies the certificate against the hostname;
 * every redirect hop is validated the same way, at most ``MAX_REDIRECTS``;
 * the body is read incrementally and capped at ``max_bytes``;
-* ``TIMEOUT`` is a total deadline per request (connect, headers and body);
+* ``TIMEOUT`` is a total deadline per request (connect, headers and body) and
+  ``TOTAL_TIMEOUT`` bounds the whole call including redirects;
+* ``deny_networks`` lets the operator block "public" addresses that are in fact
+  internal (own public IPv4 with hairpin NAT, native IPv6 prefix), from
+  ``FETCH_DENY_CIDRS``;
 * no proxies from the environment (``http.client`` never consults them).
 """
 
@@ -21,6 +25,7 @@ import socket
 import ssl
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from urllib.parse import quote, urljoin, urlsplit
 
@@ -28,6 +33,7 @@ PAGE_MAX_BYTES = 2_000_000
 IMAGE_MAX_BYTES = 10_000_000
 TIMEOUT = 8
 MAX_REDIRECTS = 3
+TOTAL_TIMEOUT = 20
 
 ALLOWED_PORTS = frozenset({80, 443})
 USER_AGENT = "Mozilla/5.0 (compatible; WishlistBot/1.0)"
@@ -56,18 +62,43 @@ class FetchResult:
     final_url: str
 
 
-def is_public_address(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
+IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+
+def _embedded_ipv4(ip: IPAddress) -> ipaddress.IPv4Address | None:
+    """The IPv4 address an IPv4-mapped or NAT64 (64:ff9b::/96) address routes to."""
+    if not isinstance(ip, ipaddress.IPv6Address):
+        return None
+    if ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    if ip in _NAT64_WELL_KNOWN:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return None
+
+
+def _is_denied(ip: IPAddress, deny_networks: Sequence[IPNetwork]) -> bool:
+    candidates = [ip]
+    embedded = _embedded_ipv4(ip)
+    if embedded is not None:
+        candidates.append(embedded)
+    # Only same-version pairs can match (an embedded IPv4 against IPv4 networks).
+    return any(
+        addr.version == net.version and addr in net for addr in candidates for net in deny_networks
+    )
+
+
+def is_public_address(ip: IPAddress) -> bool:
     """True only for globally routable unicast addresses.
 
     IPv6 addresses that embed an IPv4 address are judged by the embedded
     address (IPv4-mapped, NAT64 well-known prefix) or refused outright
     (IPv4-compatible, 6to4, Teredo), since they can route to IPv4 hosts.
     """
-    if ip.version == 6:
-        if ip.ipv4_mapped is not None:
-            return is_public_address(ip.ipv4_mapped)
-        if ip in _NAT64_WELL_KNOWN:
-            return is_public_address(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+    if isinstance(ip, ipaddress.IPv6Address):
+        embedded = _embedded_ipv4(ip)
+        if embedded is not None:
+            return is_public_address(embedded)
         if ip.sixtofour is not None or ip.teredo is not None:
             return False
         if ip in _IPV4_COMPATIBLE or ip in _SITE_LOCAL or ip.scope_id:
@@ -118,7 +149,7 @@ def _parse_url(url: str) -> _Target:
         ip = None
     if ip is not None:
         host = str(ip)
-        host_for_header = f"[{host}]" if ip.version == 6 else host
+        host_for_header = f"[{host}]" if isinstance(ip, ipaddress.IPv6Address) else host
     else:
         try:
             host = raw_host.encode("idna").decode("ascii").lower()
@@ -135,8 +166,8 @@ def _parse_url(url: str) -> _Target:
     return _Target(url, scheme, host, port, request_target, host_header)
 
 
-def _resolve(target: _Target) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
-    """Resolve once and return an address to connect to; all must be public."""
+def _resolve(target: _Target, deny_networks: Sequence[IPNetwork]) -> IPAddress:
+    """Resolve once and return an address to connect to; all must be public and not denied."""
     try:
         addresses = [ipaddress.ip_address(target.host)]
     except ValueError:
@@ -153,6 +184,8 @@ def _resolve(target: _Target) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
     for address in addresses:
         if not is_public_address(address):
             raise FetchError(f"non-public address for {target.host!r}")
+        if _is_denied(address, deny_networks):
+            raise FetchError(f"denied address for {target.host!r}")
     return addresses[0]
 
 
@@ -189,7 +222,12 @@ class _Deadline:
         self._killer = sock.dup()
         self._timer = threading.Timer(self.remaining(), self._fire)
         self._timer.daemon = True
-        self._timer.start()
+        try:
+            self._timer.start()
+        except RuntimeError as e:  # e.g. thread limit reached
+            self._timer = None
+            self.cancel()
+            raise FetchError("cannot start timeout watchdog") from e
 
     def _fire(self) -> None:
         with self._lock:
@@ -218,7 +256,7 @@ class _PinnedHTTPConnection(http.client.HTTPConnection):
         self._deadline = deadline
 
     def connect(self):
-        family = socket.AF_INET6 if self._ip.version == 6 else socket.AF_INET
+        family = socket.AF_INET6 if isinstance(self._ip, ipaddress.IPv6Address) else socket.AF_INET
         sock = socket.socket(family, socket.SOCK_STREAM)
         try:
             sock.settimeout(self._deadline.remaining())
@@ -260,10 +298,10 @@ def _read_body(response: http.client.HTTPResponse, max_bytes: int, deadline: _De
     return b"".join(chunks)
 
 
-def _fetch_once(target: _Target, ip, *, max_bytes: int, accept: str):
-    """One request; returns (status, location, content_type, body)."""
+def _fetch_once(target: _Target, ip: IPAddress, *, budget: float, max_bytes: int, accept: str):
+    """One request within ``budget`` seconds; returns (status, location, content_type, body)."""
     connection_class = _PinnedHTTPSConnection if target.scheme == "https" else _PinnedHTTPConnection
-    deadline = _Deadline(TIMEOUT)
+    deadline = _Deadline(budget)
     connection = connection_class(target.host, target.port, ip=ip, deadline=deadline)
     try:
         connection.request(
@@ -297,18 +335,35 @@ def _fetch_once(target: _Target, ip, *, max_bytes: int, accept: str):
         connection.close()
 
 
-def safe_fetch(url: str, *, max_bytes: int, accept: str) -> FetchResult:
-    """Fetch ``url`` with SSRF protections; raise FetchError on any refusal or failure."""
+def safe_fetch(
+    url: str,
+    *,
+    max_bytes: int,
+    accept: str,
+    deny_networks: Sequence[IPNetwork] = (),
+) -> FetchResult:
+    """Fetch ``url`` with SSRF protections; raise FetchError on any refusal or failure.
+
+    ``deny_networks`` (operator's ``FETCH_DENY_CIDRS``) are refused on every hop
+    in addition to all non-public addresses.
+    """
+    expires = time.monotonic() + TOTAL_TIMEOUT
     current = url
     for _hop in range(MAX_REDIRECTS + 1):
         target = _parse_url(current)
-        ip = _resolve(target)
+        ip = _resolve(target, deny_networks)
+        left = expires - time.monotonic()
+        if left <= 0:
+            raise FetchError("timed out")
         status, location, content_type, body = _fetch_once(
-            target, ip, max_bytes=max_bytes, accept=accept
+            target, ip, budget=min(TIMEOUT, left), max_bytes=max_bytes, accept=accept
         )
         if status not in _REDIRECT_STATUSES:
             return FetchResult(content=body, content_type=content_type, final_url=current)
         if not location:
             raise FetchError("redirect without Location")
-        current = urljoin(current, location.strip())
+        try:
+            current = urljoin(current, location.strip())
+        except ValueError as e:
+            raise FetchError("malformed redirect Location") from e
     raise FetchError("too many redirects")
