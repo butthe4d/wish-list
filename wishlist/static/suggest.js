@@ -1,8 +1,9 @@
 // Item form, after "Find pictures": the shop's name/description differ from what the
 // member typed. The server renders each as a .shop-suggestion block under its field (a
 // "Replace" button that works without JS). Here they become one popup with a tick box per
-// field: Replace writes the ticked values into the fields; Keep mine (also Escape and the
-// backdrop) leaves the fields alone. Either way the inline blocks go away.
+// field: Replace writes the ticked values into the fields (unticked ones are declined);
+// Keep mine (also Escape and the backdrop) leaves the fields alone. Either way all inline
+// blocks go away, so a declined suggestion does not come back on a later re-render.
 // Loaded by the item form itself, so htmx runs it again after each boosted swap.
 (function () {
   var QUOTE_OPEN = "«", QUOTE_CLOSE = "»", ARROW = " → ";
@@ -56,7 +57,7 @@
       var replace = dlg.returnValue === "replace";
       pairs.forEach(function (p) {
         if (replace && p.box.checked) p.field.value = shopValue(p.block);
-        if (!replace || p.box.checked) p.block.remove();
+        p.block.remove();  // answered: an unticked suggestion is declined, not left for later
       });
       dlg.remove();
     });

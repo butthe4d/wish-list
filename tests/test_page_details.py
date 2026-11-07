@@ -129,3 +129,34 @@ def test_hostile_markup_is_bounded_and_fast():
     title, desc = extract_details(html, "https://s.example/")
     assert time.monotonic() - started < 1
     assert len(title) <= 200 and len(desc) <= 301
+
+
+def test_many_entities_in_title_are_fast():
+    import time
+
+    from wishlist.pictures import _parse
+
+    # Almost all of this is html.unescape in the stdlib parser (about 0.45 s here on its
+    # own); the bound only catches per-chunk work in the collector on top of that.
+    html = "<title>" + "&amp;" * 400_000 + "</title>"
+    started = time.monotonic()
+    parser = _parse(html)
+    assert time.monotonic() - started < 1.5
+    assert 0 < len(parser.title_tag) <= 4000
+
+
+def test_many_data_chunks_in_title_are_fast():
+    import time
+
+    from wishlist.pictures import _Collector
+
+    # Many separate handle_data calls (older parsers split <title> text at inner tags):
+    # each call must be O(1), not a sum over what was collected so far.
+    parser = _Collector()
+    parser.handle_starttag("title", [])
+    started = time.monotonic()
+    for _ in range(400_000):
+        parser.handle_data("&")
+    parser.handle_endtag("title")
+    assert time.monotonic() - started < 0.5
+    assert parser.title_tag == "&" * 4000

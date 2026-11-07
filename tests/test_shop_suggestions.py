@@ -220,3 +220,15 @@ def test_polish_strings(app, db, monkeypatch):
     assert "Ze sklepu: «Słuchawki X200»" in html
     assert ">Zamień</button>" in html
     assert "Użyć tekstu ze sklepu?" in html and "Zostaw moje" in html
+
+
+def test_forged_long_suggestion_is_capped(member_client, db):
+    from wishlist.catalog import NAME_MAX
+
+    r = member_client.post(
+        "/items/new",
+        data={"link": SHOP, "name": "Lamp", "suggest_name": "x" * 500, "action": "apply:name"},
+    )
+    assert _name_value(r.text) == "x" * NAME_MAX
+    r = member_client.post("/items/new", data={"link": SHOP, "name": "x" * 500})
+    assert r.status_code == 200 and db.query(Item).count() == 0  # save rejects it too

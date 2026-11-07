@@ -40,7 +40,7 @@ def _candidate_tokens(form) -> list[str]:
     return tokens[:FIND_LIMIT]
 
 
-SUGGEST_FIELDS = {"name": pictures.NAME_MAX, "description": 2000}  # field -> length cap
+SUGGEST_FIELDS = {"name": catalog.NAME_MAX, "description": catalog.DESCRIPTION_MAX}  # field -> length cap
 
 
 def _same_text(a: str, b: str) -> bool:

@@ -95,6 +95,7 @@ class _Collector(HTMLParser):
         self.ld_descriptions: list[str] = []
         self.title_tag: str | None = None
         self._title_buf: list[str] | None = None
+        self._title_len = 0  # running length of _title_buf: O(1) per data chunk
 
     def handle_starttag(self, tag, attrs):
         a = {k: (v or "") for k, v in attrs}
@@ -117,6 +118,7 @@ class _Collector(HTMLParser):
         elif tag == "title":
             if self.title_tag is None:
                 self._title_buf = []
+                self._title_len = 0
         elif tag == "img":
             if _size_below_100(a.get("width")) or _size_below_100(a.get("height")):
                 return
@@ -127,8 +129,10 @@ class _Collector(HTMLParser):
     def handle_data(self, data):
         if self._ld_buf is not None:
             self._ld_buf.append(data)
-        elif self._title_buf is not None and sum(map(len, self._title_buf)) < TEXT_CAP:
+        elif self._title_buf is not None and self._title_len < TEXT_CAP:
+            data = data[: TEXT_CAP - self._title_len]
             self._title_buf.append(data)
+            self._title_len += len(data)
 
     def handle_endtag(self, tag):
         if tag == "script" and self._ld_buf is not None:
