@@ -1,10 +1,12 @@
 """Finding item pictures on shop pages and turning them into stored JPEGs."""
 
+import html as htmllib
 import io
 import json
 import re
 import threading
 import time
+from dataclasses import dataclass
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
@@ -40,17 +42,21 @@ def _size_below_100(value: str | None) -> bool:
     return bool(m) and int(m.group(1)) < 100
 
 
-def _json_ld_images(node, out: list[str]) -> None:
+def _json_ld_images(node, out: list[str], names: list[str] | None = None, descriptions: list[str] | None = None) -> None:
     if isinstance(node, list):
         for n in node:
-            _json_ld_images(n, out)
+            _json_ld_images(n, out, names, descriptions)
     elif isinstance(node, dict):
         if "@graph" in node:
-            _json_ld_images(node["@graph"], out)
+            _json_ld_images(node["@graph"], out, names, descriptions)
         types = node.get("@type")
         types = types if isinstance(types, list) else [types]
         if "Product" in types:
             _collect_image_values(node.get("image"), out)
+            if names is not None and isinstance(node.get("name"), str):
+                names.append(node["name"])
+            if descriptions is not None and isinstance(node.get("description"), str):
+                descriptions.append(node["description"])
 
 
 def _collect_image_values(value, out: list[str]) -> None:
@@ -65,6 +71,15 @@ def _collect_image_values(value, out: list[str]) -> None:
             out.append(url)
 
 
+_TEXT_KEYS = frozenset({
+    "og:title", "og:site_name", "og:description", "twitter:title", "twitter:description", "description",
+})
+NAME_MAX = 200
+DESCRIPTION_MAX = 300
+_TAG_RE = re.compile(r"<[^>]*>")
+_SUFFIX_SPLIT_RE = re.compile(r"\s+[|\u2013\u2014-]\s+")
+
+
 class _Collector(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -74,6 +89,11 @@ class _Collector(HTMLParser):
         self.link: list[str] = []
         self.imgs: list[str] = []
         self._ld_buf: list[str] | None = None
+        self.texts: dict[str, str] = {}  # og:title, og:site_name, ... first value wins
+        self.ld_names: list[str] = []
+        self.ld_descriptions: list[str] = []
+        self.title_tag: str | None = None
+        self._title_buf: list[str] | None = None
 
     def handle_starttag(self, tag, attrs):
         a = {k: (v or "") for k, v in attrs}
@@ -84,12 +104,18 @@ class _Collector(HTMLParser):
                 self.meta.append(a.get("content", ""))
             elif name == "twitter:image":
                 self.twitter.append(a.get("content", ""))
+            key = prop if prop.startswith("og:") else name
+            if key in _TEXT_KEYS and a.get("content", "").strip():
+                self.texts.setdefault(key, a["content"])
         elif tag == "link":
             if "image_src" in (a.get("rel") or "").lower().split():
                 self.link.append(a.get("href", ""))
         elif tag == "script":
             if (a.get("type") or "").lower() == "application/ld+json":
                 self._ld_buf = []
+        elif tag == "title":
+            if self.title_tag is None:
+                self._title_buf = []
         elif tag == "img":
             if _size_below_100(a.get("width")) or _size_below_100(a.get("height")):
                 return
@@ -100,23 +126,112 @@ class _Collector(HTMLParser):
     def handle_data(self, data):
         if self._ld_buf is not None:
             self._ld_buf.append(data)
+        elif self._title_buf is not None:
+            self._title_buf.append(data)
 
     def handle_endtag(self, tag):
         if tag == "script" and self._ld_buf is not None:
             try:
-                _json_ld_images(json.loads("".join(self._ld_buf)), self.json_ld)
+                _json_ld_images(
+                    json.loads("".join(self._ld_buf)), self.json_ld, self.ld_names, self.ld_descriptions
+                )
             except (ValueError, RecursionError):
                 pass
             self._ld_buf = None
+        elif tag == "title" and self._title_buf is not None:
+            self.title_tag = "".join(self._title_buf)
+            self._title_buf = None
 
 
-def extract_candidates(html: str, base_url: str) -> list[str]:
+def _parse(html: str) -> _Collector:
     parser = _Collector()
     try:
         parser.feed(html)
         parser.close()
     except Exception:  # html.parser can raise on pathological input; keep what we have
         pass
+    return parser
+
+
+def _clean_text(value: str | None) -> str:
+    text = htmllib.unescape(value or "")
+    return " ".join(_TAG_RE.sub(" ", text).split())
+
+
+def _host_label(page_url: str) -> str:
+    try:
+        host = (urlsplit(page_url).hostname or "").lower()
+    except ValueError:
+        return ""
+    if host.startswith("www."):
+        host = host[4:]
+    return host.split(".", 1)[0]
+
+
+def _clean_title(value: str | None, site_name: str, label: str) -> str | None:
+    text = _clean_text(value)
+    if not text:
+        return None
+    parts = _SUFFIX_SPLIT_RE.split(text)
+    if len(parts) > 1:
+        suffix = parts[-1].casefold()
+        if suffix == site_name.casefold() or (label and label in suffix):
+            text = text[: text.rfind(parts[-1])].rstrip()
+            text = re.sub(r"\s*[|\u2013\u2014-]$", "", text).rstrip()
+    if not text or text.casefold() == site_name.casefold():
+        return None
+    return text[:NAME_MAX].rstrip()
+
+
+def _clean_description(value: str | None) -> str | None:
+    text = _clean_text(value)
+    if not text:
+        return None
+    if len(text) > DESCRIPTION_MAX:
+        cut = text[:DESCRIPTION_MAX]
+        if " " in cut and text[DESCRIPTION_MAX] != " ":
+            cut = cut.rsplit(" ", 1)[0]
+        text = cut.rstrip() + "…"
+    return text
+
+
+def _details_from(parser: _Collector, page_url: str) -> tuple[str | None, str | None]:
+    t = parser.texts
+    site_name = _clean_text(t.get("og:site_name"))
+    label = _host_label(page_url)
+    title = None
+    for raw in (
+        t.get("og:title"),
+        parser.ld_names[0] if parser.ld_names else None,
+        t.get("twitter:title"),
+        parser.title_tag,
+    ):
+        title = _clean_title(raw, site_name, label)
+        if title:
+            break
+    description = None
+    for raw in (
+        t.get("og:description"),
+        parser.ld_descriptions[0] if parser.ld_descriptions else None,
+        t.get("description"),
+        t.get("twitter:description"),
+    ):
+        description = _clean_description(raw)
+        if description:
+            break
+    return title, description
+
+
+def extract_details(html: str, page_url: str) -> tuple[str | None, str | None]:
+    """Product title and description from a shop page, or None for each that is missing."""
+    return _details_from(_parse(html), page_url)
+
+
+def extract_candidates(html: str, base_url: str) -> list[str]:
+    return _candidates_from(_parse(html), base_url)
+
+
+def _candidates_from(parser: _Collector, base_url: str) -> list[str]:
     raw = [
         (u, False) for u in parser.meta + parser.twitter + parser.json_ld + parser.link
     ] + [(u, True) for u in parser.imgs]
@@ -214,7 +329,14 @@ def _decode_html(content: bytes, content_type: str) -> str:
     return content.decode("utf-8", errors="replace")
 
 
-def find_pictures(page_url: str, *, limit: int = 3) -> list[bytes]:
+@dataclass
+class PageInfo:
+    title: str | None
+    description: str | None
+    pictures: list[bytes]
+
+
+def inspect_page(page_url: str, *, limit: int = 3) -> PageInfo:
     expires = time.monotonic() + FIND_BUDGET
     try:
         page = safe_fetch(
@@ -228,13 +350,12 @@ def find_pictures(page_url: str, *, limit: int = 3) -> list[bytes]:
         raise PictureError(str(exc)) from exc
     if "html" not in (page.content_type or "").lower():
         raise PictureError("page is not HTML")
-    candidates = extract_candidates(_decode_html(page.content, page.content_type or ""), page.final_url)
+    parser = _parse(_decode_html(page.content, page.content_type or ""))
+    title, description = _details_from(parser, page.final_url)
     pictures: list[bytes] = []
-    for url in candidates[:MAX_ATTEMPTS]:
+    for url in _candidates_from(parser, page.final_url)[:MAX_ATTEMPTS]:
         left = expires - time.monotonic()
         if left <= 0:
-            if not pictures:
-                raise PictureError("time budget exhausted")
             break
         try:
             pictures.append(download_image(url, timeout=left))
@@ -242,8 +363,13 @@ def find_pictures(page_url: str, *, limit: int = 3) -> list[bytes]:
             continue
         if len(pictures) >= limit:
             break
-    if not pictures and time.monotonic() >= expires:
-        raise PictureError("time budget exhausted")
+    return PageInfo(title, description, pictures)
+
+
+def find_pictures(page_url: str, *, limit: int = 3) -> list[bytes]:
+    pictures = inspect_page(page_url, limit=limit).pictures
+    if not pictures:
+        raise PictureError("no usable picture")
     return pictures
 
 

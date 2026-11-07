@@ -109,8 +109,8 @@ def test_find_pictures_tries_at_most_eight(app, local_server, allow_loopback, sh
     hits = []
     for n in range(12):
         route(f"/bad{n}.jpg")(lambda h: (hits.append(h.path), _send(h, b"x", content_type="image/jpeg")))
-    with app.app_context():
-        assert find_pictures(local_server + "/shop") == []
+    with app.app_context(), pytest.raises(PictureError):
+        find_pictures(local_server + "/shop")
     assert len(hits) == 8
 
 
