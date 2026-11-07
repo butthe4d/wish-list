@@ -54,9 +54,9 @@ def _json_ld_images(node, out: list[str], names: list[str] | None = None, descri
         if "Product" in types:
             _collect_image_values(node.get("image"), out)
             if names is not None and isinstance(node.get("name"), str):
-                names.append(node["name"])
+                names.append(node["name"][:TEXT_CAP])
             if descriptions is not None and isinstance(node.get("description"), str):
-                descriptions.append(node["description"])
+                descriptions.append(node["description"][:TEXT_CAP])
 
 
 def _collect_image_values(value, out: list[str]) -> None:
@@ -76,7 +76,8 @@ _TEXT_KEYS = frozenset({
 })
 NAME_MAX = 200
 DESCRIPTION_MAX = 300
-_TAG_RE = re.compile(r"<[^>]*>")
+TEXT_CAP = 4000
+_TAG_RE = re.compile(r"<[^<>]*>")
 _SUFFIX_SPLIT_RE = re.compile(r"\s+[|\u2013\u2014-]\s+")
 
 
@@ -106,7 +107,7 @@ class _Collector(HTMLParser):
                 self.twitter.append(a.get("content", ""))
             key = prop if prop.startswith("og:") else name
             if key in _TEXT_KEYS and a.get("content", "").strip():
-                self.texts.setdefault(key, a["content"])
+                self.texts.setdefault(key, a["content"][:TEXT_CAP])
         elif tag == "link":
             if "image_src" in (a.get("rel") or "").lower().split():
                 self.link.append(a.get("href", ""))
@@ -126,7 +127,7 @@ class _Collector(HTMLParser):
     def handle_data(self, data):
         if self._ld_buf is not None:
             self._ld_buf.append(data)
-        elif self._title_buf is not None:
+        elif self._title_buf is not None and sum(map(len, self._title_buf)) < TEXT_CAP:
             self._title_buf.append(data)
 
     def handle_endtag(self, tag):
@@ -139,7 +140,7 @@ class _Collector(HTMLParser):
                 pass
             self._ld_buf = None
         elif tag == "title" and self._title_buf is not None:
-            self.title_tag = "".join(self._title_buf)
+            self.title_tag = "".join(self._title_buf)[:TEXT_CAP]
             self._title_buf = None
 
 
@@ -154,31 +155,58 @@ def _parse(html: str) -> _Collector:
 
 
 def _clean_text(value: str | None) -> str:
-    text = htmllib.unescape(value or "")
+    text = htmllib.unescape((value or "")[:TEXT_CAP])
     return " ".join(_TAG_RE.sub(" ", text).split())
 
 
-def _host_label(page_url: str) -> str:
+_TWO_PART_SUFFIXES = frozenset({
+    "com.pl", "org.pl", "net.pl", "co.uk", "org.uk", "com.au", "co.jp", "com.br", "co.nz", "com.de",
+})
+
+
+def _host_label(page_url: str) -> tuple[str, str]:
+    """(registrable label, label plus public suffix), e.g. ("x-kom", "x-kom.pl")."""
     try:
         host = (urlsplit(page_url).hostname or "").lower()
     except ValueError:
-        return ""
-    if host.startswith("www."):
-        host = host[4:]
-    return host.split(".", 1)[0]
+        return "", ""
+    parts = host.split(".")
+    if len(parts) < 2:
+        return "", ""
+    n = 3 if len(parts) >= 3 and ".".join(parts[-2:]) in _TWO_PART_SUFFIXES else 2
+    n = min(n, len(parts))
+    return parts[-n], ".".join(parts[-n:])
 
 
-def _clean_title(value: str | None, site_name: str, label: str) -> str | None:
+def _norm(value: str) -> str:
+    return re.sub(r"[\s._-]+", "", value.casefold())
+
+
+def _is_shop_segment(segment: str, site_name: str, label: str, domain: str) -> bool:
+    norm = _norm(segment)
+    if not norm:
+        return False
+    if site_name and norm == _norm(site_name):
+        return True
+    if len(label) < 3:
+        return False
+    if norm in (_norm(label), _norm(domain)):
+        return True
+    word = re.escape(label.casefold())
+    return bool(re.search(rf"^{word}(?![\w-])|(?<![\w-]){word}$", segment.strip().casefold()))
+
+
+def _clean_title(value: str | None, site_name: str, label: str, domain: str) -> str | None:
     text = _clean_text(value)
     if not text:
         return None
-    parts = _SUFFIX_SPLIT_RE.split(text)
-    if len(parts) > 1:
-        suffix = parts[-1].casefold()
-        if suffix == site_name.casefold() or (label and label in suffix):
-            text = text[: text.rfind(parts[-1])].rstrip()
-            text = re.sub(r"\s*[|\u2013\u2014-]$", "", text).rstrip()
-    if not text or text.casefold() == site_name.casefold():
+    matches = list(_SUFFIX_SPLIT_RE.finditer(text))
+    if matches:
+        last = matches[-1]
+        head = text[: last.start()].strip()
+        if head and _is_shop_segment(text[last.end():], site_name, label, domain):
+            text = head
+    if site_name and _norm(text) == _norm(site_name):
         return None
     return text[:NAME_MAX].rstrip()
 
@@ -189,8 +217,8 @@ def _clean_description(value: str | None) -> str | None:
         return None
     if len(text) > DESCRIPTION_MAX:
         cut = text[:DESCRIPTION_MAX]
-        if " " in cut and text[DESCRIPTION_MAX] != " ":
-            cut = cut.rsplit(" ", 1)[0]
+        if text[DESCRIPTION_MAX] != " " and cut.rfind(" ") > DESCRIPTION_MAX // 2:
+            cut = cut[: cut.rfind(" ")]
         text = cut.rstrip() + "…"
     return text
 
@@ -198,7 +226,7 @@ def _clean_description(value: str | None) -> str | None:
 def _details_from(parser: _Collector, page_url: str) -> tuple[str | None, str | None]:
     t = parser.texts
     site_name = _clean_text(t.get("og:site_name"))
-    label = _host_label(page_url)
+    label, domain = _host_label(page_url)
     title = None
     for raw in (
         t.get("og:title"),
@@ -206,7 +234,7 @@ def _details_from(parser: _Collector, page_url: str) -> tuple[str | None, str | 
         t.get("twitter:title"),
         parser.title_tag,
     ):
-        title = _clean_title(raw, site_name, label)
+        title = _clean_title(raw, site_name, label, domain)
         if title:
             break
     description = None
