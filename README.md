@@ -146,7 +146,15 @@ make i18n-compile
 make test
 ```
 
-Run locally with `BASE_URL=http://localhost:8000 SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(48))") ADMIN_EMAIL=you@example.com DATABASE_URL=sqlite:///dev.db .venv/bin/python -m wishlist.bootstrap`, then `.venv/bin/flask --app "wishlist:create_app()" run`.
+Run a local dev server (Flask's built-in server, reachable from other machines on your network):
+
+```sh
+make dev-env   # once: writes dev.env (git-ignored) with a generated SECRET_KEY and this machine's IP
+make run       # compiles translations, runs migrations/bootstrap, serves on port 8000 (PORT=… to change)
+```
+
+The first `make run` prints `Admin link: …`. Data lives in `dev.db` and `devdata/` in the repo folder (both git-ignored).
+
 
 ## Licenses
 
