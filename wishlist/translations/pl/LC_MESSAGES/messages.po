@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-06 08:29-0500\n"
+"POT-Creation-Date: 2026-11-06 22:03-0500\n"
 "PO-Revision-Date: 2026-10-24 18:30-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pl\n"
@@ -270,8 +270,8 @@ msgstr "Nowa lista"
 msgid "List name"
 msgstr "Nazwa listy"
 
-#: wishlist/templates/home.html:33 wishlist/templates/item_form.html:69
-#: wishlist/templates/list_owner.html:100
+#: wishlist/templates/home.html:33 wishlist/templates/item_form.html:82
+#: wishlist/templates/item_form.html:86 wishlist/templates/list_owner.html:100
 msgid "Description"
 msgstr "Opis"
 
@@ -300,7 +300,7 @@ msgid "New item"
 msgstr "Nowa pozycja"
 
 #: wishlist/templates/admin/member_form.html:28
-#: wishlist/templates/item_form.html:16 wishlist/templates/item_form.html:85
+#: wishlist/templates/item_form.html:16 wishlist/templates/item_form.html:99
 #: wishlist/templates/list_owner.html:108
 msgid "Save"
 msgstr "Zapisz"
@@ -342,22 +342,39 @@ msgstr "Bezpośredni link do zdjęcia"
 msgid "No picture"
 msgstr "Bez zdjęcia"
 
+#: wishlist/templates/item_form.html:71
+#, python-format
+msgid "From the shop: «%(value)s»"
+msgstr "Ze sklepu: «%(value)s»"
+
+#: wishlist/templates/item_form.html:73 wishlist/templates/item_form.html:110
+msgid "Replace"
+msgstr "Zamień"
+
 #: wishlist/templates/admin/index.html:13
 #: wishlist/templates/admin/member_form.html:8
-#: wishlist/templates/item_form.html:65
+#: wishlist/templates/item_form.html:77 wishlist/templates/item_form.html:81
 msgid "Name"
 msgstr "Nazwa"
 
-#: wishlist/templates/item_form.html:75
+#: wishlist/templates/item_form.html:89
 msgid "Lists"
 msgstr "Listy"
 
 #: wishlist/templates/admin/member_form.html:29
-#: wishlist/templates/item_form.html:86
+#: wishlist/templates/item_form.html:100
 msgid "Cancel"
 msgstr "Anuluj"
 
-#: wishlist/templates/admin/index.html:39 wishlist/templates/item_form.html:92
+#: wishlist/templates/item_form.html:107
+msgid "Use the shop's text?"
+msgstr "Użyć tekstu ze sklepu?"
+
+#: wishlist/templates/item_form.html:111
+msgid "Keep mine"
+msgstr "Zostaw moje"
+
+#: wishlist/templates/admin/index.html:39 wishlist/templates/item_form.html:121
 msgid "Delete"
 msgstr "Usuń"
 
@@ -683,41 +700,41 @@ msgstr "Zaznacz pole potwierdzenia, aby usunąć członka."
 msgid "Member deleted."
 msgstr "Członek został usunięty."
 
-#: wishlist/views/member.py:66
+#: wishlist/views/member.py:86
 msgid "Paste a shop link first."
 msgstr "Najpierw wklej link do sklepu."
 
-#: wishlist/views/member.py:69 wishlist/views/member.py:114
+#: wishlist/views/member.py:89 wishlist/views/member.py:172
 msgid "Too many picture searches, try again later."
 msgstr "Za dużo wyszukiwań zdjęć, spróbuj później."
 
-#: wishlist/views/member.py:79
+#: wishlist/views/member.py:101
 msgid "Couldn't find pictures on that page."
 msgstr "Nie udało się znaleźć zdjęć na tej stronie."
 
-#: wishlist/views/member.py:94
+#: wishlist/views/member.py:152
 msgid "Paste a direct link to a picture."
 msgstr "Wklej bezpośredni link do zdjęcia."
 
-#: wishlist/views/member.py:299 wishlist/views/member.py:324
+#: wishlist/views/member.py:353 wishlist/views/member.py:378
 msgid "Daily sending limit reached, try again tomorrow."
 msgstr "Osiągnięto dzienny limit wysyłania, spróbuj jutro."
 
-#: wishlist/views/member.py:303 wishlist/views/member.py:328
+#: wishlist/views/member.py:357 wishlist/views/member.py:382
 #, python-format
 msgid "Sent to %(recipients)s."
 msgstr "Wysłano do: %(recipients)s."
 
-#: wishlist/views/member.py:305
+#: wishlist/views/member.py:359
 #, python-format
 msgid "Couldn't send to %(recipients)s."
 msgstr "Nie udało się wysłać do: %(recipients)s."
 
-#: wishlist/views/member.py:326
+#: wishlist/views/member.py:380
 msgid "Couldn't send the text message."
 msgstr "Nie udało się wysłać SMS-a."
 
-#: wishlist/views/member.py:338
+#: wishlist/views/member.py:392
 msgid "New share link created. The old link no longer works."
 msgstr "Utworzono nowy link do udostępniania. Stary link już nie działa."
 

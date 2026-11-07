@@ -41,5 +41,5 @@ Every user-visible string (templates, flashes, errors, emails, SMS) goes through
 - `tests/conftest.py`: `app` has injected `RecordingMailer`/`RecordingSms` (`tests/fakes.py`) and `WTF_CSRF_ENABLED=False`; CSRF is covered in `tests/test_csrf.py` with its own app.
 - The `db` fixture is a separate session (`expire_on_commit=False`), like another process, so a domain function that forgets to commit fails the test.
 - Tests that call catalog functions directly (outside a request) use the `catalog_mailer` fixture; `notify.DISABLED` builds an app with a channel off (`create_app(cfg, sms=DISABLED)`).
-- Fetch tests use the `local_server` fixture (a loopback HTTP server; it also allows its port) plus `allow_loopback` (treats 127.0.0.1 as public); monkeypatch the fetch budgets (`fetch.TIMEOUT`/`TOTAL_TIMEOUT`, `pictures.FETCH_LIMIT`, `pictures.time`) instead of waiting. Other tests monkeypatch `pictures.find_pictures`.
+- Fetch tests use the `local_server` fixture (a loopback HTTP server; it also allows its port) plus `allow_loopback` (treats 127.0.0.1 as public); monkeypatch the fetch budgets (`fetch.TIMEOUT`/`TOTAL_TIMEOUT`, `pictures.FETCH_LIMIT`, `pictures.time`) instead of waiting. View tests monkeypatch `pictures.inspect_page` (returns `PageInfo(title, description, pictures)`).
 - Helpers: `make_user`, `login`, fixtures `admin_client`, `item_in_list`.

@@ -40,6 +40,24 @@ def _candidate_tokens(form) -> list[str]:
     return tokens[:FIND_LIMIT]
 
 
+SUGGEST_FIELDS = {"name": pictures.NAME_MAX, "description": 2000}  # field -> length cap
+
+
+def _same_text(a: str, b: str) -> bool:
+    return " ".join(a.split()) == " ".join(b.split())
+
+
+def _suggestions(form) -> dict[str, str]:
+    """Shop values offered for fields the member filled differently (carried in suggest_*)."""
+    out = {}
+    for field, cap in SUGGEST_FIELDS.items():
+        value = form.get(f"suggest_{field}", "").strip()[:cap]
+        current = form.get(field, "")
+        if value and current.strip() and not _same_text(current, value):
+            out[field] = value
+    return out
+
+
 def _render_form(user, item, form, error=None, *, candidates=None, notice=None, picture=None):
     selected = {int(v) for v in form.getlist("wishlist_ids") if v.isdigit()}
     candidates = _candidate_tokens(form) if candidates is None else candidates
@@ -53,11 +71,13 @@ def _render_form(user, item, form, error=None, *, candidates=None, notice=None, 
     return render_template(
         "item_form.html", item=item, form=form, error=error, selected=selected,
         wishlists=user.wishlists, candidates=candidates, notice=notice, picture=picture,
+        suggestions=_suggestions(form),
     )
 
 
 def _find_pictures(user, item, form):
-    """The "Find pictures" button: search the shop page and re-render with candidates."""
+    """The "Find pictures" button: read the shop page, fill empty name/description, suggest
+    the shop's text for fields the member filled differently, and show picture candidates."""
     try:
         link = catalog.normalize_link(form.get("link"))
     except ValidationError as e:
@@ -69,12 +89,14 @@ def _find_pictures(user, item, form):
             user, item, form, notice=_("Too many picture searches, try again later.")
         )
     try:
-        found = pictures.find_pictures(link, limit=FIND_LIMIT)
+        page = pictures.inspect_page(link, limit=FIND_LIMIT)
     except pictures.PictureError:
-        found = []
+        page = None
     except Exception:  # a hostile page must never turn into a 500
         current_app.logger.exception("picture search failed")
-        found = []
+        page = None
+    form = _with_shop_text(form, page)
+    found = page.pictures if page is not None else []
     if not found:
         return _render_form(user, item, form, notice=_("Couldn't find pictures on that page."))
     tokens = [images.store_temp(data) for data in found]
@@ -82,6 +104,42 @@ def _find_pictures(user, item, form):
     return _render_form(
         user, item, form, candidates=tokens, picture="keep" if keep_current else f"temp:{tokens[0]}"
     )
+
+
+def _with_shop_text(form, page) -> MultiDict:
+    """A copy of the form: empty fields take the shop's value, filled ones get a suggestion."""
+    form = MultiDict(form)
+    for field in SUGGEST_FIELDS:
+        form.pop(f"suggest_{field}", None)
+    shop = {"name": page.title, "description": page.description} if page is not None else {}
+    for field, value in shop.items():
+        if not value:
+            continue
+        if form.get(field, "").strip():
+            form[f"suggest_{field}"] = value  # shown only if it differs (_suggestions)
+        else:
+            form[field] = value
+    return form
+
+
+def _apply_suggestion(user, item, form, field):
+    """The no-JS "Replace" button: take the shop's value for one field; nothing is saved."""
+    form = MultiDict(form)
+    if field in SUGGEST_FIELDS:
+        value = form.get(f"suggest_{field}", "").strip()[:SUGGEST_FIELDS[field]]
+        if value:
+            form[field] = value
+        form.pop(f"suggest_{field}", None)
+    return _render_form(user, item, form)
+
+
+def _post_item_form(user, item, form):
+    action = form.get("action", "")
+    if action == "find":
+        return _find_pictures(user, item, form)
+    if action.startswith("apply:"):
+        return _apply_suggestion(user, item, form, action.removeprefix("apply:"))
+    return _save_item(user, item, form)
 
 
 def _image_choice(form) -> catalog.ImageChoice:
@@ -158,9 +216,7 @@ def home():
 def item_new():
     user = current_user()
     if request.method == "POST":
-        if request.form.get("action") == "find":
-            return _find_pictures(user, None, request.form)
-        return _save_item(user, None, request.form)
+        return _post_item_form(user, None, request.form)
     return _render_form(user, None, request.form)
 
 
@@ -170,9 +226,7 @@ def item_edit(item_id):
     user = current_user()
     item = catalog.get_owned_item(get_session(), user, item_id)
     if request.method == "POST":
-        if request.form.get("action") == "find":
-            return _find_pictures(user, item, request.form)
-        return _save_item(user, item, request.form)
+        return _post_item_form(user, item, request.form)
     form = MultiDict(
         [("name", item.name), ("description", item.description or ""), ("link", item.link or "")]
         + [("wishlist_ids", str(w.id)) for w in item.wishlists]

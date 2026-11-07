@@ -13,6 +13,11 @@ from wishlist.models import Item, Reservation, Wishlist
 pytestmark = pytest.mark.usefixtures("catalog_mailer")
 
 
+def _page(found):
+    """What pictures.inspect_page returns for a page with these pictures and no details."""
+    return pictures.PageInfo(None, None, found)
+
+
 def _jpeg(color="red", size=(300, 200)):
     buf = io.BytesIO()
     Image.new("RGB", size, color).save(buf, "JPEG")
@@ -95,7 +100,7 @@ def test_find_pictures_failure_message(member_client, monkeypatch):
     def boom(url, limit=3):
         raise pictures.PictureError("blocked")
 
-    monkeypatch.setattr(pictures, "find_pictures", boom)
+    monkeypatch.setattr(pictures, "inspect_page", boom)
     r = member_client.post(
         "/items/new", data={"link": "https://shop.example/x", "name": "Lamp", "action": "find"}
     )
@@ -106,7 +111,7 @@ def test_find_pictures_failure_message(member_client, monkeypatch):
 
 
 def test_find_no_pictures_same_message(member_client, monkeypatch):
-    monkeypatch.setattr(pictures, "find_pictures", lambda url, limit=3: [])
+    monkeypatch.setattr(pictures, "inspect_page", lambda url, limit=3: _page([]))
     r = member_client.post("/items/new", data={"link": "https://shop.example/x", "action": "find"})
     assert "Couldn&#39;t find pictures on that page." in r.text
 
@@ -114,7 +119,7 @@ def test_find_no_pictures_same_message(member_client, monkeypatch):
 def test_find_rate_limited(member_client, monkeypatch):
     called = []
     monkeypatch.setattr(pictures, "allow_fetch", lambda user_id: False)
-    monkeypatch.setattr(pictures, "find_pictures", lambda url, limit=3: called.append(url) or [])
+    monkeypatch.setattr(pictures, "inspect_page", lambda url, limit=3: called.append(url) or _page([]))
     r = member_client.post("/items/new", data={"link": "https://shop.example/x", "action": "find"})
     assert r.status_code == 200
     assert "Too many picture searches, try again later." in r.text
@@ -123,7 +128,7 @@ def test_find_rate_limited(member_client, monkeypatch):
 
 
 def test_find_without_link_does_not_search(member_client, monkeypatch):
-    monkeypatch.setattr(pictures, "find_pictures", lambda url, limit=3: pytest.fail("searched"))
+    monkeypatch.setattr(pictures, "inspect_page", lambda url, limit=3: pytest.fail("searched"))
     r = member_client.post("/items/new", data={"link": " ", "action": "find"})
     assert r.status_code == 200 and "Paste a shop link first." in r.text
     r = member_client.post("/items/new", data={"link": "javascript:x", "action": "find"})
@@ -132,7 +137,7 @@ def test_find_without_link_does_not_search(member_client, monkeypatch):
 
 
 def test_find_never_saves(member_client, db, monkeypatch):
-    monkeypatch.setattr(pictures, "find_pictures", lambda url, limit=3: [_jpeg()])
+    monkeypatch.setattr(pictures, "inspect_page", lambda url, limit=3: _page([_jpeg()]))
     member_client.post(
         "/items/new", data={"link": "https://shop.example/x", "name": "Lamp", "action": "find"}
     )
@@ -140,7 +145,7 @@ def test_find_never_saves(member_client, db, monkeypatch):
 
 
 def test_save_with_candidate(app, member_client, db, monkeypatch):
-    monkeypatch.setattr(pictures, "find_pictures", lambda url, limit=3: [_jpeg(), _jpeg("blue")])
+    monkeypatch.setattr(pictures, "inspect_page", lambda url, limit=3: _page([_jpeg(), _jpeg("blue")]))
     html = member_client.post(
         "/items/new", data={"link": "https://shop.example/x", "name": "Lamp", "action": "find"}
     ).text
@@ -162,7 +167,7 @@ def test_save_with_candidate(app, member_client, db, monkeypatch):
 
 
 def test_candidates_survive_a_validation_error(member_client, db, monkeypatch):
-    monkeypatch.setattr(pictures, "find_pictures", lambda url, limit=3: [_jpeg(), _jpeg("blue")])
+    monkeypatch.setattr(pictures, "inspect_page", lambda url, limit=3: _page([_jpeg(), _jpeg("blue")]))
     html = member_client.post(
         "/items/new", data={"link": "https://shop.example/x", "action": "find"}
     ).text
@@ -240,7 +245,7 @@ def test_edit_find_keeps_current_picture_selected(app, member_client, db, member
     item = create_item(db, member, name="Lamp", description=None, link=None)
     with app.test_request_context():
         set_item_image(db, item, ("temp", images.store_temp(_jpeg())))
-    monkeypatch.setattr(pictures, "find_pictures", lambda url, limit=3: [_jpeg("blue")])
+    monkeypatch.setattr(pictures, "inspect_page", lambda url, limit=3: _page([_jpeg("blue")]))
     html = member_client.post(
         f"/items/{item.id}/edit",
         data={"name": "Lamp", "link": "https://shop.example/x", "picture": "keep", "action": "find"},
@@ -412,7 +417,7 @@ def test_find_unexpected_error_is_a_notice(member_client, monkeypatch):
     def boom(url, limit=3):
         raise RuntimeError("surprise")
 
-    monkeypatch.setattr(pictures, "find_pictures", boom)
+    monkeypatch.setattr(pictures, "inspect_page", boom)
     r = member_client.post("/items/new", data={"link": "https://shop.example/x", "action": "find"})
     assert r.status_code == 200
     assert "Couldn&#39;t find pictures on that page." in r.text
