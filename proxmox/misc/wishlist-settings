@@ -6,6 +6,8 @@
 #   wishlist-settings --set KEY VALUE validate, save, restart; restores the
 #                                     previous settings if the app fails to start
 #   wishlist-settings --set KEY -     same, value read from stdin (for secrets)
+#   wishlist-settings --set K1 V1 K2 V2 ...
+#                                     several settings, one restart
 #   wishlist-settings --list          print all setting names
 set -uo pipefail
 
@@ -24,6 +26,9 @@ Usage: wishlist-settings                  open the settings menu
                                           so they don't appear in the process
                                           list or shell history), e.g.
                                           read -rs p; printf '%s' "\$p" | wishlist-settings --set SMTP_PASSWORD -
+       wishlist-settings --set K1 V1 K2 V2 ...
+                                          change several settings with one
+                                          restart (at most one value may be -)
        wishlist-settings --list           list setting names
 
 Settings live in $WISHLIST_ENV. Changing ADMIN_NAME or ADMIN_EMAIL only
@@ -57,21 +62,37 @@ apply_work_copy() {
   wl_apply_settings "$WORK"
 }
 
-set_locked() {
+set_locked() { # KEY VALUE [KEY VALUE ...]
   make_work_copy
-  WISHLIST_ENV="$WORK" wl_settings_set "$1" "$2" || exit 1
+  while (($# >= 2)); do
+    WISHLIST_ENV="$WORK" wl_settings_set "$1" "$2" || exit 1
+    shift 2
+  done
   wl_apply_settings "$WORK" || exit 1
 }
 
-cmd_set() {
-  local key="$1" value="$2"
+cmd_set() { # KEY VALUE [KEY VALUE ...]: validate all, then one save + restart
+  local -a pairs=() keys=()
+  local key value stdin_used=0
   need_root
-  if [[ "$value" == - ]]; then
-    value="$(cat)"
-  fi
-  wl_validate "$key" "$value" || exit 1
-  wl_with_lock set_locked "$key" "$value" || exit 1
-  echo "Saved $key; Wish List restarted."
+  while (($# >= 2)); do
+    key="$1" value="$2"
+    shift 2
+    if [[ "$value" == - ]]; then
+      if [[ $stdin_used == 1 ]]; then
+        wl_err "Only one value can be read from stdin (-)."
+        exit 2
+      fi
+      stdin_used=1
+      value="$(cat)"
+    fi
+    wl_validate "$key" "$value" || exit 1
+    pairs+=("$key" "$value")
+    keys+=("$key")
+  done
+  wl_with_lock set_locked "${pairs[@]}" || exit 1
+  local list="${keys[*]}"
+  echo "Saved ${list// /, }; Wish List restarted."
 }
 
 # --- menu --------------------------------------------------------------------
@@ -234,8 +255,9 @@ case "${1:-}" in
   printf '%s\n' "$v"
   ;;
 --set)
-  [[ $# -eq 3 ]] || { usage >&2; exit 2; }
-  cmd_set "$2" "$3"
+  [[ $# -ge 3 && $(($# % 2)) -eq 1 ]] || { usage >&2; exit 2; }
+  shift
+  cmd_set "$@"
   ;;
 --list) printf '%s\n' "${WL_KEYS[@]}" ;;
 -h | --help) usage ;;

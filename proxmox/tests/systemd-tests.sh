@@ -54,6 +54,52 @@ cp "$REPO/proxmox/misc/wishlist.service" /etc/systemd/system/wishlist.service
 out="$(systemd-analyze verify /etc/systemd/system/wishlist.service 2>&1)"
 eq "systemd-analyze verify is clean" "" "$out"
 
+# Start limit on real systemd (StartLimitBurst=5 per StartLimitIntervalSec=120
+# in the unit): manual restarts count, so quick settings changes must clear
+# it (reset-failed) or the app ends up down. The unit runs a tiny stand-in
+# app answering /healthz on port 8000 (drop-in), everything else is real:
+# the unit's limits, wishlist-settings and the lib.
+cat >/tmp/fakeapp.py <<'PY'
+import http.server
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b"ok" if self.path == "/healthz" else b"no"
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *a):
+        pass
+http.server.HTTPServer.allow_reuse_address = True
+http.server.HTTPServer(("127.0.0.1", 8000), H).serve_forever()
+PY
+chmod 644 /tmp/fakeapp.py
+mkdir -p /etc/systemd/system/wishlist.service.d
+printf '%s\n' '[Service]' 'ExecStartPre=' 'ExecStart=' 'ExecStart=/usr/bin/python3 /tmp/fakeapp.py' \
+  >/etc/systemd/system/wishlist.service.d/test.conf
+export WISHLIST_ENV=/etc/wishlist/wishlist.env
+: >"$WISHLIST_ENV"
+wl_settings_set ADMIN_NAME Admin
+chown root:wishlist "$WISHLIST_ENV" && chmod 640 "$WISHLIST_ENV"
+systemctl daemon-reload
+first_refused=""
+for i in 1 2 3 4 5 6; do systemctl restart wishlist >/dev/null 2>&1 || { first_refused=$i; break; }; done
+eq "real systemd refuses the 6th quick restart" 6 "$first_refused"
+eq "the refusal is the start limit" start-limit-hit "$(systemctl show -p Result --value wishlist)"
+systemctl reset-failed wishlist
+systemctl start wishlist
+wl_health 30 >/dev/null 2>&1
+fails=0
+for i in 1 2 3 4 5 6 7; do
+  WISHLIST_LIB="$REPO/proxmox/misc/wishlist-lib.sh" bash "$REPO/proxmox/misc/wishlist-settings" \
+    --set ADMIN_NAME "Quick $i" >/tmp/quick.out 2>&1 || { fails=$((fails + 1)); tail -n 5 /tmp/quick.out; }
+done
+eq "7 consecutive --set calls succeed on real systemd" 0 "$fails"
+eq "last value saved" "Quick 7" "$(wl_settings_get ADMIN_NAME)"
+eq "service active after 7 quick --set calls" active "$(systemctl is-active wishlist)"
+eq "app answers after 7 quick --set calls" ok "$(curl -fsS --max-time 5 http://127.0.0.1:8000/healthz 2>/dev/null)"
+systemctl stop wishlist
+
 echo
 echo "systemd tests: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

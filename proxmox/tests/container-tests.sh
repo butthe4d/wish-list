@@ -182,6 +182,44 @@ eq "service is up again after restore" ok "$(health)"
 check "service was restarted" test "$pid_before" != "$(app_pid)"
 check "failure shows the service log" grep -qi "error\|exception\|unable" <<<"$out"
 
+# Several settings in one call: one restart.
+pid_before="$(app_pid)"
+out="$(printf '%s' 'tok%en' | WISHLIST_HEALTH_TIMEOUT=60 wishlist-settings --set ADMIN_NAME 'Multi One' GSMSERVICE_TOKEN - SMTP_PORT 2525 2>&1)"
+eq "--set with several pairs exits 0" 0 "$?"
+check "--set with several pairs names them" grep -q "Saved ADMIN_NAME, GSMSERVICE_TOKEN, SMTP_PORT" <<<"$out"
+eq "--set several: first value" "Multi One" "$(wishlist-settings --get ADMIN_NAME)"
+eq "--set several: stdin value" "tok%en" "$(wishlist-settings --get GSMSERVICE_TOKEN)"
+eq "--set several: last value" 2525 "$(wishlist-settings --get SMTP_PORT)"
+check "--set several: restarted" test "$pid_before" != "$(app_pid)"
+before="$(sha256sum "$ENV_FILE")"
+out="$(wishlist-settings --set ADMIN_NAME ok SMTP_PORT notaport 2>&1)"
+check "--set several: one invalid value fails" test "$?" -ne 0
+eq "--set several: nothing saved when one is invalid" "$before" "$(sha256sum "$ENV_FILE")"
+check "--set with a missing value is a usage error" bash -c "wishlist-settings --set ADMIN_NAME x SMTP_PORT >/dev/null 2>&1; [ \$? = 2 ]"
+check "--set with two stdin values is refused" bash -c "echo x | wishlist-settings --set ADMIN_NAME - SMTP_USER - >/dev/null 2>&1; [ \$? -ne 0 ]"
+eq "--set refused: nothing saved" "$before" "$(sha256sum "$ENV_FILE")"
+
+# systemd's start limit (StartLimitBurst=5 per 120 s, modelled by the stub)
+# counts manual restarts: quick changes must not end with the app down.
+echo "== start limit: 7 quick --set calls =="
+systemctl reset-failed wishlist
+first_refused=""
+for i in 1 2 3 4 5 6; do systemctl restart wishlist >/dev/null 2>&1 || { first_refused=$i; break; }; done
+eq "stub models the start limit (6th quick restart refused)" "6 inactive" "$first_refused $(systemctl is-active wishlist)"
+systemctl reset-failed wishlist
+systemctl start wishlist
+wl_health 60 >/dev/null 2>&1
+fails=0
+for i in 1 2 3 4 5 6 7; do
+  WISHLIST_HEALTH_TIMEOUT=60 wishlist-settings --set ADMIN_NAME "Quick $i" >/tmp/quick.out 2>&1 || { fails=$((fails + 1)); tail -n 5 /tmp/quick.out; }
+done
+eq "7 consecutive --set calls all succeed" 0 "$fails"
+eq "last value saved" "Quick 7" "$(wishlist-settings --get ADMIN_NAME)"
+eq "app up after 7 quick --set calls" ok "$(health)"
+WISHLIST_HEALTH_TIMEOUT=60 wishlist-settings --set ADMIN_NAME Admin GSMSERVICE_TOKEN '' SMTP_PORT 587 >/dev/null 2>&1
+eq "settings put back for the next tests" "Admin||587" \
+  "$(wishlist-settings --get ADMIN_NAME)|$(wishlist-settings --get GSMSERVICE_TOKEN)|$(wishlist-settings --get SMTP_PORT)"
+
 # --- 5. Interactive answers (read fallback) ---------------------------------------
 echo "== interactive configuration (scripted answers) =="
 A=/tmp/answers
@@ -246,6 +284,12 @@ rm -f /tmp/mode.env
 MODE=appdefaults WISHLIST_ENV=/tmp/mode.env WISHLIST_ANSWERS=$A collect </dev/null >/tmp/mode.out 2>&1
 check "engine MODE=appdefaults asks nothing" bash -c "! grep -q 'Configure Wish List now' /tmp/mode.out"
 eq "engine MODE=appdefaults uses defaults" "admin@example.com" "$(WISHLIST_ENV=/tmp/mode.env wl_settings_get ADMIN_EMAIL)"
+for m in mydefaults-global mydefaults userdefaults-app appdefaults-x 3 4; do
+  check "engine MODE=$m counts as unattended" env MODE="$m" WISHLIST_ANSWERS="$A" bash -c ". $LIB; wl_is_unattended"
+done
+for m in default advanced generated 33 xmydefaults; do
+  check "engine MODE=$m does not count as unattended" env MODE="$m" WISHLIST_ANSWERS="$A" bash -c ". $LIB; ! wl_is_unattended"
+done
 
 rm -f /tmp/fifo /tmp/timeout.env
 mkfifo /tmp/fifo

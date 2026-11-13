@@ -470,8 +470,10 @@ wl_container_ip() {
 wl_is_unattended() {
   [[ "${WISHLIST_UNATTENDED:-0}" == 1 || "${PHS_SILENT:-0}" == 1 ]] && return 0
   [[ "${var_unattended:-}" =~ ^(yes|true|1)$ || "${UNATTENDED:-}" =~ ^(yes|true|1)$ ]] && return 0
-  # The engine's own "no questions" modes (MODE is exported into the container).
-  [[ "${MODE:-}" =~ ^(mydefaults|userdefaults|appdefaults|3|4)$ ]] && return 0
+  # The engine's own "no questions" modes (MODE is exported into the
+  # container). Its METHOD values carry suffixes ("mydefaults-global",
+  # ui/defaults.func), so the names match as prefixes.
+  [[ "${MODE:-}" =~ ^(mydefaults|userdefaults|appdefaults) || "${MODE:-}" =~ ^(3|4)$ ]] && return 0
   ! wl_can_prompt
 }
 
@@ -575,6 +577,15 @@ wl_health() {
   return 1
 }
 
+# wl_service start|restart: start the app after clearing systemd's start
+# rate limit (StartLimitBurst=5 per 120 s). Manual starts count towards it,
+# so a few quick settings changes would otherwise make systemd refuse the
+# next start (start-limit-hit), and the restore would be refused as well.
+wl_service() {
+  systemctl reset-failed "$WL_SERVICE" 2>/dev/null || true
+  systemctl "$1" "$WL_SERVICE"
+}
+
 # wl_apply_settings NEW_FILE: install NEW_FILE as the settings file, restart
 # and health-check; on failure put the previous file back, restart, print
 # the service log and return 1. Holds the lock throughout.
@@ -587,13 +598,13 @@ _wl_apply_settings() {
   old="$(mktemp "$(dirname "$WISHLIST_ENV")/.wishlist.env.prev.XXXXXX")" || return 1
   cp -p "$WISHLIST_ENV" "$old" || return 1
   wl_secure_env_file "$new" && mv -f "$new" "$WISHLIST_ENV" || { rm -f "$old"; return 1; }
-  if systemctl restart "$WL_SERVICE" && wl_health; then
+  if wl_service restart && wl_health; then
     rm -f "$old"
     return 0
   fi
   log="$(journalctl -u "$WL_SERVICE" -n 20 --no-pager 2>&1)"
   mv -f "$old" "$WISHLIST_ENV"
-  systemctl restart "$WL_SERVICE" || true
+  wl_service restart || true
   wl_err "Wish List failed to start with the new settings; the previous settings were restored."
   wl_err "Last log lines:"
   wl_err "$log"
@@ -657,7 +668,7 @@ wl_build_ref() {
     # Chained with &&: `set -e` would be ignored here (this runs on the left
     # of ||), so a failed step would not stop the build.
     (
-      export PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_INPUT=1
+      export PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_INPUT=1 PIP_NO_CACHE_DIR=1
       python3 -m venv "$stage/.venv" &&
         "$stage/.venv/bin/python" -m pip install -q babel &&
         "$stage/.venv/bin/python" -m babel.messages.frontend compile -d "$stage/wishlist/translations" &&
@@ -972,10 +983,14 @@ _wl_update() {
   echo "Migrating the database and starting the new version..."
   # Only stderr is kept: stdout could carry a one-time admin link.
   if err="$(wl_run_as_app "$WL_APP_DIR/.venv/bin/python" -m wishlist.bootstrap 2>&1 >/dev/null)" &&
-    systemctl start "$WL_SERVICE" && wl_health; then
+    wl_service start && wl_health; then
     _wl_untrap
     _wl_refresh_helpers
-    _wl_refresh_entrypoint
+    # The engine pin only moves forward with main: a release's lib may carry
+    # an older pin than the one /usr/bin/update already has.
+    if [[ "$channel" == main ]]; then
+      _wl_refresh_entrypoint
+    fi
     echo "Updated Wish List to $latest. Backup of the previous version: $backup"
     return 0
   fi
@@ -1069,7 +1084,7 @@ _wl_install_unit() {
 
 # Start the untouched installation again after an aborted update.
 _wl_start_unchanged() {
-  if ! { systemctl start "$WL_SERVICE" && wl_health >/dev/null 2>&1; }; then
+  if ! { wl_service start && wl_health >/dev/null 2>&1; }; then
     wl_err "Warning: Wish List did not come back up; check: journalctl -u $WL_SERVICE"
   fi
 }
@@ -1078,8 +1093,20 @@ _wl_start_unchanged() {
 # previous code dir (WL_APP_DIR.prev) back, else just drop WL_APP_DIR.new;
 # then restore the backup (database, pictures, settings, version, unit),
 # start, health-check. Always returns 1 (the update failed either way); says
-# whether the rollback worked.
+# whether the rollback worked. SIGINT/SIGTERM are ignored while it runs (an
+# interrupted rollback would leave a half-restored, stopped app); the
+# previous dispositions are put back afterwards.
 _wl_rollback() {
+  local saved_traps
+  saved_traps="$(trap -p INT TERM)"
+  trap '' INT TERM
+  _wl_do_rollback "$@"
+  trap - INT TERM
+  eval "$saved_traps"
+  return 1
+}
+
+_wl_do_rollback() {
   local backup="$1" previous="$2" swapped="${3:-1}" ok=1
   wl_err "Rolling back to $previous..."
   systemctl stop "$WL_SERVICE" || true
@@ -1095,6 +1122,11 @@ _wl_rollback() {
       ok=0
     fi
   else
+    # Not swapped, or interrupted inside the swap: if the live dir was moved
+    # aside but the new one not moved in, put the old one back.
+    if [[ ! -e "$WL_APP_DIR" && -d "$WL_APP_DIR.prev" ]]; then
+      mv -T "$WL_APP_DIR.prev" "$WL_APP_DIR" || ok=0
+    fi
     rm -rf "$WL_APP_DIR.new"
   fi
   _wl_restore "$backup" || ok=0
@@ -1102,7 +1134,7 @@ _wl_rollback() {
     cp "$backup/wishlist.service" "$WL_UNIT_FILE" && chmod 644 "$WL_UNIT_FILE" || ok=0
   fi
   systemctl daemon-reload || ok=0
-  if ! { systemctl start "$WL_SERVICE" && wl_health; }; then ok=0; fi
+  if ! { wl_service start && wl_health; }; then ok=0; fi
   if [[ $ok == 1 ]]; then
     wl_err "Update failed; rolled back to $previous (code, database, pictures and settings). Backup kept in $backup."
   else

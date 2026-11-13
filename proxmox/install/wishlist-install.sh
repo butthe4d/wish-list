@@ -63,7 +63,7 @@ fi
 if ! wl_shielded wl_install_ref "$WISHLIST_REF" "$WL_APP_DIR"; then
   # wl_install_ref left the old code in place: bring the old app back up.
   if [[ $was_running == 1 ]]; then
-    systemctl start "$WL_SERVICE" || true
+    wl_service start || true
   fi
   msg_error "Installing Wish List $WISHLIST_REF failed; the previous installation was left in place."
   exit 1
@@ -91,6 +91,7 @@ fi
 
 msg_info "Starting Wish List"
 systemctl daemon-reload
+systemctl reset-failed "$WL_SERVICE" 2>/dev/null || true
 systemctl enable -q --now "$WL_SERVICE"
 wl_health 60
 msg_ok "Started Wish List"

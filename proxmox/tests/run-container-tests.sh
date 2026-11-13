@@ -11,7 +11,8 @@
 #    (and ct/wishlist.sh's update path through the real, pinned engine).
 # 2. Starts a second debian:13 container with real systemd as PID 1 and runs
 #    systemd-tests.sh: systemd's own EnvironmentFile parser must read values
-#    written by wl_settings_set byte-for-byte, and the unit must verify.
+#    written by wl_settings_set byte-for-byte, the unit must verify, and
+#    quick settings changes must survive the unit's start limit.
 #    Needs --privileged; set WL_SKIP_SYSTEMD=1 to skip this part.
 #
 # Needs docker and network access (apt, PyPI). Containers are removed on exit.
@@ -51,7 +52,7 @@ else
   docker run -d --name "$sd" "${run_opts[@]}" --privileged --cgroupns=host \
     -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run --tmpfs /run/lock \
     -v "$repo:/repo:ro" "$image" \
-    bash -c 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq systemd python3 >/dev/null && exec /lib/systemd/systemd' >/dev/null
+    bash -c 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq systemd python3 curl ca-certificates >/dev/null && exec /lib/systemd/systemd' >/dev/null
   booted=0
   for _ in $(seq 1 60); do
     state="$(docker exec "$sd" systemctl is-system-running 2>/dev/null || true)"

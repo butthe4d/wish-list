@@ -414,6 +414,59 @@ newest="$(find "$BK" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tai
 eq "newest backup is the one before the last upgrade" "$SHA_V3" "$(cat "$BK/$newest/wishlist_version.txt")"
 eq "healthy after the upgrades" ok "$(health)"
 
+# --- Ctrl-C (SIGINT to the whole process group) during the automatic rollback -------
+echo "== SIGINT during the rollback (a minute) =="
+# The rollback is slowed down after the code and database are restored, while
+# the app is still stopped (its daemon-reload, the second of the update); the
+# test then sends SIGINT to the updater's whole process group, like Ctrl-C.
+mkdir -p /tmp/slowrb
+cat >/tmp/slowrb/systemctl <<'SH'
+#!/usr/bin/env bash
+if [[ "$1" == daemon-reload && -e /tmp/slow-rb ]]; then
+  n=$(($(cat /tmp/slow-rb-count 2>/dev/null || echo 0) + 1))
+  echo "$n" >/tmp/slow-rb-count
+  if [[ $n == 2 ]]; then
+    rm -f /tmp/slow-rb
+    cut -d' ' -f5 "/proc/$$/stat" >/tmp/slow-rb-pgid
+    sleep 4
+  fi
+fi
+exec /usr/local/bin/systemctl "$@"
+SH
+chmod +x /tmp/slowrb/systemctl
+rm -f /tmp/slow-rb-count /tmp/slow-rb-pgid /tmp/rbint.rc
+touch /tmp/slow-rb
+set_latest 9999999999999999999999999999999999999999
+before_inode="$(inode)"
+before_alembic="$(alembic)"
+# Own process group (setsid) with SIGINT at its default disposition (a
+# background job of this script would start with SIGINT ignored).
+env --default-signal=INT setsid bash -c '
+  . "$1"
+  PATH=/tmp/slowrb:$PATH WISHLIST_SOURCE_DIR=$2 WISHLIST_HEALTH_TIMEOUT=10 wl_update >/tmp/rbint.out 2>&1
+  echo $? >/tmp/rbint.rc' _ "$REPO/proxmox/misc/wishlist-lib.sh" "$SRC_START" &
+updater=$!
+for _ in $(seq 1 600); do [[ -s /tmp/slow-rb-pgid ]] && break; sleep 0.5; done
+if [[ -s /tmp/slow-rb-pgid ]]; then
+  sleep 0.5
+  kill -INT -- "-$(cat /tmp/slow-rb-pgid)"
+  wait "$updater"
+  eq "SIGINT in rollback: the rollback finishes (exit 1, not 130)" 1 "$(cat /tmp/rbint.rc 2>/dev/null)"
+  check "SIGINT in rollback: rolled back" grep -q "rolled back to $SHA_V4" /tmp/rbint.out
+  eq "SIGINT in rollback: version restored" "$SHA_V4" "$(version)"
+  eq "SIGINT in rollback: code dir restored" "$before_inode" "$(inode)"
+  eq "SIGINT in rollback: database restored" "$before_alembic" "$(alembic)"
+  eq "SIGINT in rollback: app running" ok "$(health)"
+  check "SIGINT in rollback: no leftover dirs" test ! -e /opt/wishlist.new -a ! -e /opt/wishlist.failed
+else
+  bad "SIGINT in rollback: the rollback never reached its slow step"
+  tail -n 30 /tmp/rbint.out
+  kill "$updater" 2>/dev/null
+  wait "$updater"
+fi
+[[ "$(health)" == ok ]] || { systemctl reset-failed wishlist; systemctl start wishlist; wl_health 60 >/dev/null 2>&1; }
+set_latest "$SHA_V4"
+
 # --- /usr/bin/update entrypoint ----------------------------------------------------
 echo "== /usr/bin/update =="
 U=/usr/bin/update
@@ -485,5 +538,54 @@ check "engine run, GitHub unreachable: message" grep -q "Could not check for a n
 eq "engine run: version unchanged" "$SHA_V4" "$(version)"
 eq "engine run: healthy" ok "$(health)"
 check "engine run kept our /usr/bin/update" cmp -s "$U" /tmp/update.saved
+
+# --- the ct script never sources an engine relative to the current directory ------
+echo "== ct script engine source =="
+P=/tmp/plant
+rm -rf "$P" && mkdir -p "$P/a/b" "$P/core/core" "$P/remote/core" "$P/local/core"
+printf '%s\n' 'echo PLANTED-ENGINE >/tmp/planted-ran; echo PLANTED-ENGINE; exit 0' >"$P/core/core/build.func"
+printf '%s\n' 'echo REMOTE-ENGINE; exit 0' >"$P/remote/core/build.func"
+printf '%s\n' 'echo LOCAL-ENGINE; exit 0' >"$P/local/core/build.func"
+rm -f /tmp/planted-ran
+ct_text="$(cat "$REPO/proxmox/ct/wishlist.sh")"
+out="$(cd "$P/a/b" && env -u COMMUNITY_SCRIPTS_CORE_DIR COMMUNITY_SCRIPTS_CORE_URL="file://$P/remote" bash -c "$ct_text" 2>&1)"
+check "bash -c: a planted ../../core/core/build.func is not sourced" test ! -e /tmp/planted-ran
+check "bash -c: the remote (pinned) engine is used" grep -q REMOTE-ENGINE <<<"$out"
+out="$(cd "$P/a/b" && env -u COMMUNITY_SCRIPTS_CORE_DIR COMMUNITY_SCRIPTS_CORE_URL="file://$P/remote" bash -s <<<"$ct_text" 2>&1)"
+check "piped into bash: the planted engine is not sourced" test ! -e /tmp/planted-ran
+check "piped into bash: the remote engine is used" grep -q REMOTE-ENGINE <<<"$out"
+out="$(cd "$P/a/b" && COMMUNITY_SCRIPTS_CORE_DIR="$P/local" COMMUNITY_SCRIPTS_CORE_URL="file://$P/remote" bash -c "$ct_text" 2>&1)"
+check "COMMUNITY_SCRIPTS_CORE_DIR is used when set" grep -q LOCAL-ENGINE <<<"$out"
+out="$(cd "$P/a/b" && COMMUNITY_SCRIPTS_CORE_DIR="$P/missing" COMMUNITY_SCRIPTS_CORE_URL="file://$P/remote" bash -c "$ct_text" 2>&1)"
+rc=$?
+check "a missing COMMUNITY_SCRIPTS_CORE_DIR fails loudly" test "$rc" -ne 0
+check "a missing COMMUNITY_SCRIPTS_CORE_DIR does not fall back silently" bash -c "! grep -q REMOTE-ENGINE <<<\"\$1\" && grep -q build.func <<<\"\$1\"" _ "$out"
+mkdir -p "$P/checkout/proxmox/ct" "$P/checkout/core"
+cp "$REPO/proxmox/ct/wishlist.sh" "$P/checkout/proxmox/ct/"
+cp -r "$P/local/core" "$P/checkout/core/"
+out="$(cd / && env -u COMMUNITY_SCRIPTS_CORE_DIR COMMUNITY_SCRIPTS_CORE_URL="file://$P/remote" bash "$P/checkout/proxmox/ct/wishlist.sh" 2>&1)"
+check "run as a file in a checkout: the engine next to it is used" grep -q LOCAL-ENGINE <<<"$out"
+check "the ct script points the PVE notes at our repository" grep -qx 'export REPO_SLUG="butthe4d/wish-list"' "$REPO/proxmox/ct/wishlist.sh"
+
+# --- releases channel: the engine pin in /usr/bin/update never follows a release ---
+echo "== releases channel (a minute) =="
+SRC_V5="$(mk_src v5)"
+echo "# update test: helpers v5" >>"$SRC_V5/proxmox/misc/wishlist-lib.sh"
+OLD_PIN="https://raw.githubusercontent.com/community-scripts/core/0000000000000000000000000000000000000005"
+sed -i "s|^WL_CORE_URL_DEFAULT=.*|WL_CORE_URL_DEFAULT=\"$OLD_PIN\"|" "$SRC_V5/proxmox/misc/wishlist-lib.sh"
+mkdir -p "$F/repos/butthe4d/wish-list/releases"
+echo '{"tag_name": "v9.9.9"}' >"$F/repos/butthe4d/wish-list/releases/latest"
+wl_settings_set WISHLIST_CHANNEL releases
+pin_before="$(grep '^export COMMUNITY_SCRIPTS_CORE_URL=' "$U")"
+out="$(WISHLIST_SOURCE_DIR=$SRC_V5 wl_update 2>&1)"
+rc=$?
+eq "releases: update exits 0" 0 "$rc"
+[[ $rc == 0 ]] || echo "$out" | tail -n 30
+eq "releases: version is the release tag" v9.9.9 "$(version)"
+check "releases: helpers follow the release" grep -q "update test: helpers v5" "$LIB"
+eq "releases: /usr/bin/update keeps its engine pin" "$pin_before" "$(grep '^export COMMUNITY_SCRIPTS_CORE_URL=' "$U")"
+check "releases: the release's (older) pin is not written" bash -c "! grep -q '$OLD_PIN' '$U'"
+eq "releases: healthy" ok "$(health)"
+wl_settings_set WISHLIST_CHANNEL main
 
 finish

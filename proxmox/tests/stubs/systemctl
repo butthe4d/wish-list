@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Minimal systemctl stand-in for the test container (no systemd as PID 1).
 # Understands the subset of unit syntax wishlist.service uses: User=, Group=,
-# WorkingDirectory=, EnvironmentFile=, ExecStartPre=, ExecStart=.
+# WorkingDirectory=, EnvironmentFile=, ExecStartPre=, ExecStart=, and models
+# the start rate limit (StartLimitIntervalSec=, StartLimitBurst=): like
+# systemd, every start (manual restarts included) counts, a start beyond the
+# burst within the interval is refused (start-limit-hit) until reset-failed.
 # The EnvironmentFile is loaded by bash (`set -a; .`), which reads the
 # settings file's quoting the same way systemd does (checked separately
 # against real systemd by run-container-tests.sh).
@@ -50,11 +53,41 @@ run_exec() { # unit line [exec]
     _ "$envfile" "$optional" "$wd" "${drop[@]}" "${args[@]}"
 }
 
+startsfile() { echo "$STATE/${1%.service}.starts"; }
+
+# Count this start against the unit's rate limit; fail if it is exhausted.
+start_limit_ok() {
+  local unit="$1" interval burst now sf t
+  interval="$(unit_values "$unit" StartLimitIntervalSec | tail -1)"
+  burst="$(unit_values "$unit" StartLimitBurst | tail -1)"
+  interval="${interval:-10}" burst="${burst:-5}"
+  [[ "$interval" == 0 ]] && return 0
+  now="$(date +%s)"
+  sf="$(startsfile "$unit")"
+  local -a kept=()
+  if [[ -f "$sf" ]]; then
+    while read -r t; do
+      [[ -n "$t" ]] && ((now - t < interval)) && kept+=("$t")
+    done <"$sf"
+  fi
+  if ((${#kept[@]} >= burst)); then
+    printf '%s\n' "${kept[@]}" >"$sf"
+    echo "start-limit-hit" >"$STATE/${unit%.service}.failed"
+    echo "Job for ${unit%.service}.service failed." >&2
+    echo "See \"systemctl status ${unit%.service}.service\" for details. (start-limit-hit)" >&2
+    echo "stub-systemd: start request repeated too quickly, refusing to start (start-limit-hit)" >>"$(logfile "$unit")"
+    return 1
+  fi
+  kept+=("$now")
+  printf '%s\n' "${kept[@]}" >"$sf"
+}
+
 start() {
   local unit="$1" log line
   log="$(logfile "$unit")"
   [[ -f "$(unit_path "$unit")" ]] || { echo "Unit $unit.service not found." >&2; return 5; }
   is_active "$unit" && return 0
+  start_limit_ok "$unit" || return 1
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     if ! run_exec "$unit" "$line" >>"$log" 2>&1; then
@@ -109,6 +142,7 @@ done
 case "$cmd" in
 __run) exec 2>&1; run_exec "$2" "$3" exec ;;
 daemon-reload) ;;
+reset-failed) for u in "${units[@]}"; do rm -f "$(startsfile "$u")" "$STATE/$u.failed"; done ;;
 enable)
   for u in "${units[@]}"; do
     mkdir -p /etc/systemd/system/multi-user.target.wants

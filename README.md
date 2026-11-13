@@ -100,7 +100,11 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/butthe4d/wish-list/main/
 
 The script uses the [community-scripts](https://github.com/community-scripts/core) engine (pinned to a fixed commit) for the usual dialogs and container creation. This script is not part of the official community-scripts collection. It creates a Debian 13 container with 2 vCPU, 1 GB RAM and a 4 GB disk, unprivileged. Choose "Advanced" in the first dialog to change these, the storage, network and so on. The app runs as a systemd service (`wishlist`) on port 8000, with SQLite as the database.
 
-**What it asks.** Near the end of the install: "Configure Wish List now?" (default: no, it waits 60 seconds). If you say yes, it asks for the address people will use (`BASE_URL`), the first admin's name and email, the default language, optionally an SMTP server, optionally gsmservice.pl SMS, and extra `FETCH_DENY_CIDRS`. If you say no, don't answer within 60 seconds, or there is no terminal, it uses defaults: `BASE_URL=http://<container-IP>:8000`, admin `Admin` / `admin@example.com`, language `en`, no email or SMS. You can change everything later. `SECRET_KEY` is always generated. Each later question times out after 300 seconds and keeps its default. For scripted installs set `WISHLIST_UNATTENDED=1` to skip all questions and use the defaults.
+**What it asks.** Near the end of the install: "Configure Wish List now?" (default: no, it waits 60 seconds). If you say yes, it asks for the address people will use (`BASE_URL`), the first admin's name and email, the default language, optionally an SMTP server, optionally gsmservice.pl SMS, and extra `FETCH_DENY_CIDRS`. If you say no, don't answer within 60 seconds, or there is no terminal, it uses defaults: `BASE_URL=http://<container-IP>:8000`, admin `Admin` / `admin@example.com`, language `en`, no email or SMS. You can change everything later. `SECRET_KEY` is always generated. Each later question times out after 300 seconds and keeps its default. For scripted installs, `WISHLIST_UNATTENDED=1` skips Wish List's own questions and uses the defaults (the engine's container dialogs are separate; use its default settings or saved defaults for those):
+
+```sh
+WISHLIST_UNATTENDED=1 bash -c "$(curl -fsSL https://raw.githubusercontent.com/butthe4d/wish-list/main/proxmox/ct/wishlist.sh)"
+```
 
 The default address is plain HTTP. For HTTPS or a reverse proxy, see [Exposing the app](#exposing-the-app), and afterwards update `BASE_URL` with `wishlist-settings` so links in emails and shares are correct.
 
@@ -119,10 +123,11 @@ Inside the container, run `wishlist-settings` for a menu of all settings. Or scr
 ```sh
 wishlist-settings --get BASE_URL
 wishlist-settings --set BASE_URL https://wishes.example.com
+wishlist-settings --set SMTP_HOST smtp.example.com SMTP_PORT 465 SMTP_SECURITY ssl   # several, one restart
 read -rs p; printf '%s' "$p" | wishlist-settings --set SMTP_PASSWORD -    # secrets from stdin
 ```
 
-All settings listed in the menu can be changed at any time, including `WISHLIST_CHANNEL` (see below). `DATABASE_URL` and `DATA_DIR` are managed by the installer; changing them does not move your data. `SECRET_KEY` changes only through "Regenerate SECRET_KEY" in the menu, which logs everyone out and breaks existing share links. Values are validated, then the app restarts. If it does not start with the new values, the previous settings are put back and the error is shown. Member details, including the admin's own name and email, live on the app's Admin page. `ADMIN_NAME` and `ADMIN_EMAIL` only seed the first admin on first start.
+All settings listed in the menu can be changed at any time, including `WISHLIST_CHANNEL` (see below). `DATABASE_URL` and `DATA_DIR` are managed by the installer; changing them does not move your data. To change `SECRET_KEY`, use "Regenerate SECRET_KEY" in the menu, or `--set SECRET_KEY -` (value from stdin) for a specific value; either logs everyone out and breaks existing share links. Values are validated, then the app restarts. If it does not start with the new values, the previous settings are put back and the error is shown. Member details, including the admin's own name and email, live on the app's Admin page. `ADMIN_NAME` and `ADMIN_EMAIL` only seed the first admin on first start.
 
 ### Updating
 
@@ -140,11 +145,15 @@ Which version you get depends on the channel (`wishlist-settings --set WISHLIST_
 4. switches the code, runs the database migrations and starts the app,
 5. checks that `/healthz` answers within 30 seconds. If anything fails (or you interrupt it), it restores the previous code, database, pictures and settings automatically and exits with an error.
 
-Backups are in `/var/lib/wishlist-backups/` (root only); the newest three are kept. If GitHub's API rate limit is hit, the update says so and you try again later. Updates run code from this repository's main branch (or latest release) as root in the container, so only use them if you trust this repository.
+Backups are in `/var/lib/wishlist-backups/` (root only); the newest three are kept. If GitHub's API rate limit is hit, the update says so and you try again later. `update` always downloads the update script from this repository's main branch and runs it as root in the container; the app code follows the channel (main or the latest release). On the `releases` channel the installer's helper scripts (`wishlist-settings`, the update routine, the service unit) come with the release, while the pinned community-scripts engine in `/usr/bin/update` only moves forward with main. Only use updates if you trust this repository.
 
 ### Backups
 
-Back up the whole container with Proxmox's `vzdump` or Proxmox Backup Server. At the least, keep `/var/lib/wishlist` and `/etc/wishlist`. To copy the database of a running app safely, use the SQLite `.backup` approach in [Backup](#backup).
+Back up the whole container with Proxmox's `vzdump` or Proxmox Backup Server. At the least, keep `/var/lib/wishlist` and `/etc/wishlist`. To copy the database of the running app safely, run SQLite's `.backup` as the app user inside the container, then copy the file out:
+
+```sh
+runuser -u wishlist -- sqlite3 /var/lib/wishlist/wishlist.db ".backup '/var/lib/wishlist/copy.db'"
+```
 
 ### Where things are
 
