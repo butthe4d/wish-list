@@ -143,17 +143,29 @@ _wl_settings_write() {
 }
 
 # wl_with_lock CMD...: run CMD holding the Wish List maintenance lock
-# (flock on /etc/wishlist/.lock). Settings writes, backup/restore and code
-# swaps all take it; nested calls in the same process tree just run CMD.
+# (flock on /run/wishlist/maintenance.lock; WL_LOCK_FILE overrides). Settings
+# writes, backup/restore and code swaps all take it; nested calls in the same
+# process tree just run CMD. The lock lives in a root-only directory: any
+# user who can open the file could flock it forever and block maintenance.
 wl_with_lock() {
   if [[ "${WL_LOCK_HELD:-0}" == 1 ]]; then
     "$@"
     return
   fi
-  local lock="${WL_LOCK_FILE:-$(dirname "$WISHLIST_ENV")/.lock}"
-  mkdir -p "$(dirname "$lock")" || return 1
+  local lock="${WL_LOCK_FILE:-/run/wishlist/maintenance.lock}" dir
+  dir="$(dirname "$lock")"
+  (umask 077 && mkdir -p "$dir") || return 1
+  if [[ $EUID -eq 0 && ( -L "$dir" || "$(stat -c '%u %a' "$dir")" != "0 700" ) ]]; then
+    wl_err "Refusing to use lock directory $dir: it must be a root-owned 0700 directory."
+    return 1
+  fi
   (
+    umask 077
     exec 9>>"$lock" || exit 1
+    if [[ -L "$lock" || ! -O "$lock" || "$(stat -c '%a' "$lock")" != 600 ]]; then
+      wl_err "Refusing to use lock file $lock: it must be a regular file owned by $(id -un) with mode 600."
+      exit 1
+    fi
     if ! flock -w "${WL_LOCK_TIMEOUT:-600}" 9; then
       wl_err "Another Wish List maintenance task is running (lock $lock)."
       exit 1
@@ -386,7 +398,9 @@ wl_ask_input() {
     [[ "$secret" == secret && -n "$def" ]] && hint="keep current"
     [[ -n "$def" ]] && hint+="; - clears"
     printf '%s [%s]: ' "$prompt" "$hint" >&2
-    if ! wl_read_line ans "$secret" "$(wl_field_timeout)"; then
+    local mode=""
+    [[ "$secret" == secret ]] && mode=silent
+    if ! wl_read_line ans "$mode" "$(wl_field_timeout)"; then
       printf '%s' "$def"
       return 1
     fi
@@ -704,7 +718,7 @@ wl_db_path() {
 # wl_backup: print the new backup directory (root-only). The database copy
 # is made and read by the app user (sqlite creates WAL files, which must stay
 # the app user's; and root must not read a path the app user controls);
-# images are copied without following links.
+# the same goes for the pictures.
 wl_backup() { wl_with_lock _wl_backup; }
 
 _wl_backup() {
@@ -725,7 +739,15 @@ _wl_backup() {
     wl_as_app_user rm -f "$tmp"
   fi
   if [[ -d "$WL_DATA_DIR/images" ]]; then
-    cp -a --no-dereference "$WL_DATA_DIR/images" "$dir/images" || { rm -rf "$dir"; return 1; }
+    # Archived by the app user (it can only read what it may read, links stay
+    # links), unpacked by root into the root-only backup dir. tar does not
+    # write through links from the archive (placeholders, no ../ names).
+    if ! wl_as_app_user tar -C "$WL_DATA_DIR" -cf - images |
+      tar -C "$dir" -xf - --no-same-owner --no-same-permissions --no-overwrite-dir; then
+      wl_err "Backing up the pictures failed."
+      rm -rf "$dir"
+      return 1
+    fi
   else
     mkdir "$dir/images"
   fi

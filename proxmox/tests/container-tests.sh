@@ -317,6 +317,37 @@ eq "whiptail never answered: exits 0" 0 "$?"
 check "whiptail first question times out" test $((SECONDS - start)) -lt 15
 eq "whiptail timeout means defaults" "admin@example.com" "$(WISHLIST_ENV=/tmp/wt.env wl_settings_get ADMIN_EMAIL)"
 
+# Plain prompts on a terminal: secrets are read without echo. The answer is
+# typed after a pause so the terminal is already in its reading mode.
+plain_prompt() { # secret|"" -> what the terminal showed
+  rm -f /tmp/prompt.ans
+  { sleep 2; printf 'typed-SeCrEt\n'; sleep 1; } |
+    script -qec "env TERM=dumb bash -c '. $LIB; wl_ask_input \"SMTP password\" \"\" $1 >/tmp/prompt.ans'" /dev/null 2>&1
+}
+shown_secret="$(plain_prompt secret)"
+check "plain secret prompt does not echo" bash -c "! grep -q typed-SeCrEt <<<\"\$1\"" _ "$shown_secret"
+eq "plain secret prompt still reads the answer" "typed-SeCrEt" "$(cat /tmp/prompt.ans 2>/dev/null)"
+shown_plain="$(plain_prompt "")"
+check "plain non-secret prompt echoes (control)" grep -q typed-SeCrEt <<<"$shown_plain"
+
+# The engine's real SIGHUP shield (from the pinned core.func) runs our
+# functions with output passed through, exit status kept, SIGHUP ignored.
+core_url="${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/665635b6aff5cf1486400d47e6c5aa38f9ba333d}"
+if curl -fsSL "$core_url/core/core.func" -o /tmp/core.func; then
+  sed -n '/^_cs_shield_hangup() {/,/^}/p' /tmp/core.func >/tmp/shield.sh
+  check "extracted _cs_shield_hangup from core.func" grep -q 'trap .. HUP' /tmp/shield.sh
+  shield_out="$(bash -c '
+    . "$1"; . "$2"
+    declare -F _cs_shield_hangup >/dev/null || exit 99
+    long_step() { echo "to stdout"; echo "to stderr" >&2; kill -HUP "$BASHPID"; echo "survived"; return 3; }
+    out="$(wl_shielded long_step 2>/tmp/shield.err)"; rc=$?
+    printf "%s|%s|%s" "$rc" "${out//$'"'"'\n'"'"'/,}" "$(cat /tmp/shield.err)"
+  ' _ /tmp/shield.sh "$LIB")"
+  eq "real shield runs a function: status, stdout, stderr, survives SIGHUP" "3|to stdout,survived|to stderr" "$shield_out"
+else
+  bad "could not download core.func from $core_url"
+fi
+
 # Default address: first IPv4, else bracketed IPv6.
 mkdir -p /tmp/fakehost
 printf '#!/bin/sh\necho "$FAKE_I"\n' >/tmp/fakehost/hostname
@@ -327,7 +358,7 @@ check "bracketed IPv6 BASE_URL is valid" wl_validate BASE_URL "http://[2001:db8:
 
 # Locking: a held lock blocks settings writes.
 before="$(sha256sum "$ENV_FILE")"
-flock /etc/wishlist/.lock sleep 6 &
+flock /run/wishlist/maintenance.lock sleep 6 &
 locker=$!
 sleep 0.5
 out="$(WL_LOCK_TIMEOUT=1 wishlist-settings --set ADMIN_NAME Locked 2>&1)"
@@ -336,6 +367,12 @@ check "--set waits for the lock and gives up" test "$rc" -ne 0
 check "lock message" grep -q "maintenance task" <<<"$out"
 eq "locked: file unchanged" "$before" "$(sha256sum "$ENV_FILE")"
 wait "$locker"
+eq "lock dir is root-only" "root 700" "$(stat -c '%U %a' /run/wishlist)"
+eq "lock file is root-only" "root 600" "$(stat -c '%U %a' /run/wishlist/maintenance.lock)"
+check "app user cannot open the lock file" bash -c "! setpriv --reuid=wishlist --regid=wishlist --init-groups bash -c ': </run/wishlist/maintenance.lock' 2>/dev/null"
+chmod 644 /run/wishlist/maintenance.lock
+check "lock refuses a lock file with loose permissions" bash -c ". $LIB; ! wl_with_lock true 2>/dev/null"
+chmod 600 /run/wishlist/maintenance.lock
 
 # Swap rollback: a failing second move puts the old dir back.
 rm -rf /tmp/swapt /tmp/swapt.prev
@@ -350,6 +387,8 @@ echo "== backup / restore / prune =="
 systemctl stop wishlist
 sqlite3 /var/lib/wishlist/wishlist.db "CREATE TABLE before_backup (x)"
 setpriv --reuid=wishlist --regid=wishlist --init-groups bash -c 'mkdir -p /var/lib/wishlist/images && echo pic >/var/lib/wishlist/images/a.jpg'
+echo TOPSECRET-ROOT >/root/secret && chmod 600 /root/secret
+setpriv --reuid=wishlist --regid=wishlist --init-groups ln -s /root/secret /var/lib/wishlist/images/leak.jpg
 
 b="$(wl_backup)"
 eq "wl_backup exits 0" 0 "$?"
@@ -359,6 +398,9 @@ check "backup has the version" test -f "$b/wishlist_version.txt"
 check "backup has images dir" test -d "$b/images"
 eq "backup dir is private" "700" "$(stat -c %a "$b")"
 check "backup has the pictures" test -f "$b/images/a.jpg"
+check "a symlink in images is backed up as a symlink" test -L "$b/images/leak.jpg"
+check "root-only file contents never reach the backup" bash -c "! grep -rq TOPSECRET-ROOT '$b'"
+check "backup images not owned by the app user" test -z "$(find "$b" -user wishlist)"
 check "no root-owned files left in the data dir" test -z "$(find /var/lib/wishlist -user root)"
 sqlite3 /var/lib/wishlist/wishlist.db "DROP TABLE before_backup; CREATE TABLE after_backup (x)"
 # The app user swaps images for a symlink to a root-owned dir: restore must
@@ -414,6 +456,19 @@ eq "re-run keeps BASE_URL" "$base_before" "$(wl_settings_get BASE_URL)"
 eq "re-run keeps SECRET_KEY" "$secret_before" "$(wl_settings_get SECRET_KEY)"
 check "re-run kept the previous code as .prev" test -x /opt/wishlist.prev/.venv/bin/python
 check "re-run kept the creds file" grep -q '^Admin link: http://' /root/wishlist.creds
+
+# A re-run whose code install fails brings the old app back up.
+echo "== failed install re-run =="
+rm -rf /tmp/broken-src2 && mkdir -p /tmp/broken-src2
+cp -r "$REPO/proxmox" /tmp/broken-src2/
+ls -id /opt/wishlist >/tmp/inode.before
+WISHLIST_SOURCE_DIR=/tmp/broken-src2 WISHLIST_UNATTENDED=1 \
+  bash "$REPO/proxmox/install/wishlist-install.sh" </dev/null >/tmp/install3.out 2>&1
+rc=$?
+check "failed re-run exits non-zero" test "$rc" -ne 0
+check "failed re-run says so" grep -q "previous installation was left in place" /tmp/install3.out
+eq "failed re-run leaves the code dir alone" "$(cat /tmp/inode.before)" "$(ls -id /opt/wishlist)"
+eq "failed re-run: old app is up again" 0 "$(wl_health 60 >/dev/null 2>&1; echo $?)"
 
 # --- 8. wl_latest_ref against a fake GitHub API ------------------------------------
 echo "== wl_latest_ref =="

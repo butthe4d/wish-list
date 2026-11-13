@@ -54,11 +54,20 @@ else
   WISHLIST_REF="${WISHLIST_REF:-$(wl_latest_ref "$(wl_settings_get WISHLIST_CHANNEL)")}"
 fi
 # Re-run on an existing install: the code dir is swapped, so stop the app first.
+was_running=0
 if systemctl is-active --quiet "$WL_SERVICE" 2>/dev/null; then
+  was_running=1
   systemctl stop "$WL_SERVICE"
 fi
 # Long steps run shielded from SIGHUP: closing the console must not kill pip.
-wl_shielded wl_install_ref "$WISHLIST_REF" "$WL_APP_DIR"
+if ! wl_shielded wl_install_ref "$WISHLIST_REF" "$WL_APP_DIR"; then
+  # wl_install_ref left the old code in place: bring the old app back up.
+  if [[ $was_running == 1 ]]; then
+    systemctl start "$WL_SERVICE" || true
+  fi
+  msg_error "Installing Wish List $WISHLIST_REF failed; the previous installation was left in place."
+  exit 1
+fi
 echo "$WISHLIST_REF" >"$WL_VERSION_FILE"
 msg_ok "Installed Wish List $WISHLIST_REF"
 
