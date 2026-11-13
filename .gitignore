@@ -9,3 +9,4 @@ dev.env
 devdata/
 *.db-shm
 *.db-wal
+try-data/

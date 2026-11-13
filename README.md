@@ -1,25 +1,94 @@
 # Wish List
 
-A small, self-hosted wishlist app for a household or a circle of friends. Each member keeps a catalog of items and groups them into lists. Each list can be shared by email or SMS link with anyone, member or not. Visitors reserve items so nobody buys the same gift twice, and the list owner never sees which of their items are reserved, so the surprise stays intact.
+A small, self-hosted wishlist app for a family or a circle of friends. Everyone keeps their own gift lists, shares them with a link, and guests reserve gifts so nobody buys the same thing twice. The owner of a list never sees what was reserved, so the surprise stays intact.
 
-Features: personal login links (no passwords), email and optional SMS sharing, item pictures fetched from shop links, a colour theme per list (Classic, Christmas, Birthday), English and Polish UI, a single Docker image, SQLite storage.
+It runs as one small Docker container with an SQLite database, works well on phones, and speaks English and Polish.
 
-## Quick start
+| Guest view of a shared list | Tap a gift to reserve it | Adding a gift from a shop link | A member's home page |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/screenshots/guest-grid.png" width="190" alt="Shared Christmas list as a grid of gift pictures, one reserved by the viewer and one reserved by someone else"> | <img src="docs/screenshots/guest-detail.png" width="190" alt="Gift details with a name field and an I'll get it button"> | <img src="docs/screenshots/item-form.png" width="190" alt="New item form with three pictures found on the shop page and a popup offering the shop's product name"> | <img src="docs/screenshots/member-home.png" width="190" alt="Member home page with lists and gift tiles"> |
 
-1. Copy [`docker-compose.yml`](docker-compose.yml) to a new directory and edit `BASE_URL` and `ADMIN_EMAIL`. Create a `.env` file next to it containing `SECRET_KEY=<value>` (generate one as described under [SECRET_KEY](#secret_key); compose refuses to start without it).
-2. Start it:
+**Contents:** [Features](#features) · [Try it in 5 minutes](#try-it-in-5-minutes) · [How it works](#how-it-works) · [Install for real](#install-for-real) · [Configuration](#configuration) · [Pictures](#pictures-and-fetch-protections) · [Exposing the app](#exposing-the-app) · [Privacy](#privacy-notes) · [Backup](#backup) · [Development](#development)
+
+## Features
+
+- **No passwords.** Each member gets a personal login link. Guests need nothing at all.
+- **Gift lists with pictures.** Paste a shop link and tap *Find pictures*: the app offers up to three product pictures from the page and fills in the name and description. You can also paste a picture link yourself, or skip the picture.
+- **Share by link, email or SMS.** Anyone with a list's share link can open it on their phone, no account needed.
+- **Reservations that keep the surprise.** Guests tap a gift and say who's buying it. Other guests see it as reserved; the list owner never does.
+- **A colour theme per list:** Classic, Christmas or Birthday.
+- **An admin page** to add members, resend lost links and, only when you ask, see who reserved what.
+- **English and Polish**, easy to add more.
+- **Small and private:** one container, one SQLite file, fonts and pictures served by the app itself (guests' browsers don't contact shops or Google).
+
+## Try it in 5 minutes
+
+You only need [Docker](https://docs.docker.com/get-docker/) and `git`. This runs the app on your own computer with throwaway data.
+
+```sh
+git clone https://github.com/butthe4d/wish-list.git
+cd wish-list
+docker build -t wishlist .
+docker run --rm -it -p 8000:8000 \
+  -e BASE_URL=http://localhost:8000 \
+  -e SECRET_KEY=$(openssl rand -hex 32) \
+  -e ADMIN_EMAIL=you@example.com -e ADMIN_NAME=You \
+  -v "$PWD/try-data:/data" \
+  wishlist
+```
+
+The log prints a line like `Admin link: http://localhost:8000/u/…`. Open it in your browser and you're in as the admin. Press Ctrl+C to stop; delete the `try-data` folder to start over.
+
+Then try the main flow from [How it works](#how-it-works): create a list, add a gift from a shop link, open the list's share link in a private browser window and reserve something.
+
+<details>
+<summary>Without Docker (Python 3.12+ and <code>make</code>)</summary>
+
+```sh
+git clone https://github.com/butthe4d/wish-list.git
+cd wish-list
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+make dev-env   # writes dev.env with a generated SECRET_KEY and this machine's address
+make run       # prints "Admin link: …" on the first run, then serves on port 8000
+```
+
+Edit `ADMIN_EMAIL` / `ADMIN_NAME` in `dev.env` before the first `make run` if you like. Data lives in `dev.db` and `devdata/` in the repo folder.
+</details>
+
+## How it works
+
+1. **The admin adds people.** Open your admin link, go to *Admin* and add each household member with a name and email. Each one gets a personal link, emailed if email is set up, otherwise shown on screen once for you to pass on. That link is their login, so they should keep it private.
+2. **Members make lists.** A member creates a list (for example "Christmas 2026"), picks its theme, and adds gifts. For each gift they paste the shop link and tap *Find pictures*: the app suggests pictures and fills in the name and description, asking before it changes anything they already typed.
+3. **Members share a list.** The list page has a share link to copy, plus *Send by email* and *Send by text message* when those are set up. Sharing works with anyone, member or not.
+4. **Guests reserve gifts.** The share link opens a grid of gifts. Tapping one shows the details and a *Who's buying this?* field. Once reserved, everyone else sees the gift as reserved. The list owner sees nothing, not even on their own page.
+5. **The admin keeps an eye on things.** If an owner deletes a gift someone already reserved, the admin page marks that member with *Needs attention*. Clicking *Show reservations* on that member's page reveals the details, for that member and that page view only. If someone loses their link, *Change key and send new link* gives them a new one.
+
+Opening your own list's share link while logged out (or in another browser) shows you what guests see, including reservations, so don't do that if you want to stay surprised.
+
+## Install for real
+
+For an always-on setup, for example on a home server:
+
+1. Put [`docker-compose.yml`](docker-compose.yml) in a new folder and edit `BASE_URL` (the address people will use, see [Exposing the app](#exposing-the-app)) and `ADMIN_EMAIL`.
+2. Next to it, create a `.env` file with a secret key (compose refuses to start without it):
+
+   ```sh
+   echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
+   ```
+
+3. Start it and get your admin link:
 
    ```sh
    docker compose up -d
    docker compose logs wishlist | grep "Admin link"
    ```
 
-3. Open the printed `Admin link: ...` in your browser. That link is your login, so keep it private. The first admin is created only when the database is empty.
-4. In the admin page, add the other members. Each gets their own personal link, shown on screen and emailed if SMTP is configured.
+The compose file uses the image built from this repository and published to `ghcr.io/butthe4d/wish-list`. To build it yourself instead, replace the `image:` line with `build: .` (with the compose file inside a clone of this repository).
 
-The database lives in `./data/wishlist.db` and item pictures in `./data/images/`. Migrations run automatically at every start. The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
+The database lives in `./data/wishlist.db` and item pictures in `./data/images/`. Database upgrades run automatically at every start. The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
 
-**Upgrading:** back up `data/` first (see [Backup](#backup)). The migration that adds pictures and themes runs automatically on the first start of the new version, and existing lists start with the Classic theme. Going back to an older image after upgrading is not supported.
+**Upgrading:** back up `data/` first (see [Backup](#backup)), then `docker compose pull && docker compose up -d`. Going back to an older version after an upgrade is not supported.
 
 ## Configuration
 
@@ -46,10 +115,11 @@ All configuration comes from environment variables.
 
 ### SECRET_KEY
 
-Generate a long random value:
+Generate a long random value (either command works):
 
 ```sh
-python -c "import secrets; print(secrets.token_urlsafe(48))"
+openssl rand -hex 32
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 Changing `SECRET_KEY` logs everyone out and breaks every share link already sent (share links are derived from the key and are not stored). Personal links keep working, because only their hashes are stored.
@@ -77,7 +147,7 @@ Phone numbers are entered in international format, for example `+48600100200`; s
 
 ## Pictures and fetch protections
 
-When a member adds an item with a shop link, the server can look for product pictures on that page and offer up to three to choose from. The member can also paste a direct image URL, or use no picture. The chosen picture is downloaded once, resized (long side at most 800 px), re-encoded as a JPEG with metadata stripped, and stored under `DATA_DIR/images` with a random name. Guests' browsers never contact the shop or any third party: pictures (and fonts) are served by the app itself. A picture is served only while its item is live. Deleting an item removes its picture file, except that an item with a reservation is only soft-deleted: its picture file stays on disk (and is not served) until an admin cancels that reservation or the member is deleted. Candidate pictures that were not chosen are kept in `DATA_DIR/images/tmp`; they are not cleaned on a timer, but the next time anyone searches for pictures, candidates older than an hour are removed.
+When a member adds an item with a shop link, the server can look for product pictures on that page and offer up to three to choose from. From the same page it also reads the product name and description: empty fields are filled in, and if the member already typed something different the app asks before replacing it. The member can also paste a direct image URL, or use no picture. The chosen picture is downloaded once, resized (long side at most 800 px), re-encoded as a JPEG with metadata stripped, and stored under `DATA_DIR/images` with a random name. Guests' browsers never contact the shop or any third party: pictures (and fonts) are served by the app itself. A picture is served only while its item is live. Deleting an item removes its picture file, except that an item with a reservation is only soft-deleted: its picture file stays on disk (and is not served) until an admin cancels that reservation or the member is deleted. Candidate pictures that were not chosen are kept in `DATA_DIR/images/tmp`; they are not cleaned on a timer, but the next time anyone searches for pictures, candidates older than an hour are removed.
 
 Because the server makes requests to addresses members type in, it is restricted:
 
