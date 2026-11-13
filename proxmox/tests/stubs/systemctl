@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Minimal systemctl stand-in for the test container (no systemd as PID 1).
+# Understands the subset of unit syntax wishlist.service uses: User=, Group=,
+# WorkingDirectory=, EnvironmentFile=, ExecStartPre=, ExecStart=.
+# The EnvironmentFile is loaded by bash (`set -a; .`), which reads the
+# settings file's quoting the same way systemd does (checked separately
+# against real systemd by run-container-tests.sh).
+set -uo pipefail
+
+STATE=/run/stub-systemd
+LOGS=/var/log/stub-systemd
+mkdir -p "$STATE" "$LOGS"
+
+unit_path() { echo "/etc/systemd/system/${1%.service}.service"; }
+pidfile() { echo "$STATE/${1%.service}.pid"; }
+logfile() { echo "$LOGS/${1%.service}.log"; }
+
+unit_values() { # unit key -> one value per line
+  sed -n "s/^$2=//p" "$(unit_path "$1")"
+}
+
+is_active() {
+  local pf
+  pf="$(pidfile "$1")"
+  [[ -f "$pf" ]] && kill -0 "$(cat "$pf")" 2>/dev/null
+}
+
+# Run one Exec line as the unit's user with the unit's environment
+# (replacing this shell when the third argument is "exec").
+run_exec() { # unit line [exec]
+  local unit="$1" line="$2" user group wd envfile optional=0
+  user="$(unit_values "$unit" User | tail -1)"
+  group="$(unit_values "$unit" Group | tail -1)"
+  wd="$(unit_values "$unit" WorkingDirectory | tail -1)"
+  envfile="$(unit_values "$unit" EnvironmentFile | tail -1)"
+  if [[ "$envfile" == -* ]]; then optional=1 envfile="${envfile#-}"; fi
+  local -a args
+  mapfile -d '' args < <(printf '%s' "$line" | xargs printf '%s\0')
+  local home=/root
+  [[ -n "$user" ]] && home="$(getent passwd "$user" | cut -d: -f6)"
+  local -a drop=()
+  [[ -n "$user" ]] && drop=(setpriv "--reuid=$user" "--regid=${group:-$user}" --init-groups)
+  local -a ex=()
+  [[ "${3:-}" == exec ]] && ex=(exec)
+  # shellcheck disable=SC2016
+  "${ex[@]}" env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin LANG=C.UTF-8 \
+    HOME="$home" USER="${user:-root}" LOGNAME="${user:-root}" \
+    bash -c 'if [[ -f "$1" ]]; then set -a; . "$1"; set +a; elif [[ "$2" == 0 && -n "$1" ]]; then echo "Failed to load environment file $1" >&2; exit 1; fi
+             cd "${3:-/}" || exit 1; shift 3; exec "$@"' \
+    _ "$envfile" "$optional" "$wd" "${drop[@]}" "${args[@]}"
+}
+
+start() {
+  local unit="$1" log line
+  log="$(logfile "$unit")"
+  [[ -f "$(unit_path "$unit")" ]] || { echo "Unit $unit.service not found." >&2; return 5; }
+  is_active "$unit" && return 0
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    if ! run_exec "$unit" "$line" >>"$log" 2>&1; then
+      echo "stub-systemd: ExecStartPre failed: $line" >>"$log"
+      echo "Job for ${unit%.service}.service failed because the control process exited with error code." >&2
+      return 1
+    fi
+  done < <(unit_values "$unit" ExecStartPre)
+  line="$(unit_values "$unit" ExecStart | tail -1)"
+  # setsid: own process group, so stop can signal the master and its workers.
+  setsid "$0" __run "$unit" "$line" >>"$log" 2>&1 </dev/null &
+  echo $! >"$(pidfile "$unit")"
+  sleep 0.2
+  return 0
+}
+
+stop() {
+  local unit="$1" pf pid
+  pf="$(pidfile "$unit")"
+  [[ -f "$pf" ]] || return 0
+  pid="$(cat "$pf")"
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  for _ in $(seq 1 100); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  kill -KILL -- "-$pid" 2>/dev/null || true
+  rm -f "$pf"
+}
+
+cmd=""
+units=()
+now=0
+for a in "$@"; do
+  case "$a" in
+  -q | --quiet | --no-pager | --no-block) ;;
+  --now) now=1 ;;
+  -*) ;;
+  *) if [[ -z "$cmd" ]]; then cmd="$a"; else units+=("${a%.service}"); fi ;;
+  esac
+done
+
+case "$cmd" in
+__run) exec 2>&1; run_exec "$2" "$3" exec ;;
+daemon-reload) ;;
+enable)
+  for u in "${units[@]}"; do
+    mkdir -p /etc/systemd/system/multi-user.target.wants
+    ln -sf "$(unit_path "$u")" /etc/systemd/system/multi-user.target.wants/
+    if [[ $now == 1 ]]; then start "$u" || exit 1; fi
+  done
+  ;;
+disable) for u in "${units[@]}"; do rm -f "/etc/systemd/system/multi-user.target.wants/$u.service"; done ;;
+start) for u in "${units[@]}"; do start "$u" || exit 1; done ;;
+stop) for u in "${units[@]}"; do stop "$u"; done ;;
+restart) for u in "${units[@]}"; do stop "$u"; start "$u" || exit 1; done ;;
+is-active) for u in "${units[@]}"; do is_active "$u" || { echo inactive; exit 3; }; done; echo active ;;
+is-enabled) for u in "${units[@]}"; do [[ -e "/etc/systemd/system/multi-user.target.wants/$u.service" ]] || exit 1; done ;;
+status) for u in "${units[@]}"; do if is_active "$u"; then echo "$u: active (running)"; else echo "$u: inactive"; fi; tail -n 10 "$(logfile "$u")" 2>/dev/null; done ;;
+*) echo "stub systemctl: unsupported command: $*" >&2; exit 1 ;;
+esac

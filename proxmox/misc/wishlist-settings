@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+# wishlist-settings: view and change Wish List settings inside the container.
+#
+#   wishlist-settings                 menu (whiptail, or plain prompts)
+#   wishlist-settings --get KEY       print one setting
+#   wishlist-settings --set KEY VALUE validate, save, restart; restores the
+#                                     previous settings if the app fails to start
+#   wishlist-settings --list          print all setting names
+set -uo pipefail
+
+lib="${WISHLIST_LIB:-/usr/local/lib/wishlist/wishlist-lib.sh}"
+[[ -r "$lib" ]] || lib="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/wishlist-lib.sh"
+# shellcheck source-path=SCRIPTDIR source=wishlist-lib.sh
+. "$lib"
+
+usage() {
+  cat <<EOF
+Usage: wishlist-settings                  open the settings menu
+       wishlist-settings --get KEY        print the value of KEY
+       wishlist-settings --set KEY VALUE  change KEY, restart Wish List
+       wishlist-settings --list           list setting names
+
+Settings live in $WISHLIST_ENV. Changing ADMIN_NAME or ADMIN_EMAIL only
+matters before the first admin exists; manage members in the app.
+EOF
+}
+
+need_root() {
+  if [[ $EUID -ne 0 ]]; then
+    wl_err "Run wishlist-settings as root."
+    exit 1
+  fi
+}
+
+# Copy of the settings file to edit; applied with wl_apply_settings.
+WORK=""
+make_work_copy() {
+  WORK="$(mktemp "$(dirname "$WISHLIST_ENV")/.wishlist.env.edit.XXXXXX")" || exit 1
+  trap 'rm -f "$WORK"' EXIT
+  cp -p "$WISHLIST_ENV" "$WORK" || exit 1
+}
+
+cmd_set() {
+  local key="$1" value="$2"
+  need_root
+  wl_validate "$key" "$value" || exit 1
+  make_work_copy
+  WISHLIST_ENV="$WORK" wl_settings_set "$key" "$value" || exit 1
+  wl_apply_settings "$WORK" || exit 1
+  echo "Saved $key; Wish List restarted."
+}
+
+# --- menu --------------------------------------------------------------------
+
+MENU_KEYS=(
+  BASE_URL ADMIN_NAME ADMIN_EMAIL DEFAULT_LANGUAGE
+  SMTP_HOST SMTP_PORT SMTP_SECURITY SMTP_USER SMTP_PASSWORD SMTP_FROM
+  GSMSERVICE_TOKEN GSMSERVICE_SENDER FETCH_DENY_CIDRS WISHLIST_CHANNEL WISHLIST_REPO
+)
+
+is_secret() { [[ "$1" == SMTP_PASSWORD || "$1" == GSMSERVICE_TOKEN ]]; }
+
+shown() { # key -> display value from the working copy
+  local v
+  v="$(WISHLIST_ENV="$WORK" wl_settings_get "$1")" || v=""
+  if [[ -z "$v" ]]; then
+    printf '(not set)'
+  elif is_secret "$1"; then
+    printf '********'
+  elif ((${#v} > 44)); then
+    printf '%s...' "${v:0:41}"
+  else
+    printf '%s' "$v"
+  fi
+}
+
+prompt_for() {
+  case "$1" in
+  BASE_URL) echo "Address people use to open the app (http:// or https://)" ;;
+  ADMIN_NAME) echo "First admin's name (only used while no members exist)" ;;
+  ADMIN_EMAIL) echo "First admin's email (only used while no members exist)" ;;
+  DEFAULT_LANGUAGE) echo "Default language (en or pl)" ;;
+  SMTP_HOST) echo "SMTP host (empty disables email)" ;;
+  SMTP_PORT) echo "SMTP port" ;;
+  SMTP_SECURITY) echo "SMTP security (starttls, ssl or none)" ;;
+  SMTP_USER) echo "SMTP user" ;;
+  SMTP_PASSWORD) echo "SMTP password" ;;
+  SMTP_FROM) echo "Sender address (empty = SMTP user)" ;;
+  GSMSERVICE_TOKEN) echo "gsmservice.pl API token (empty disables SMS)" ;;
+  GSMSERVICE_SENDER) echo "SMS sender name" ;;
+  FETCH_DENY_CIDRS) echo "Networks the picture fetcher must never reach (e.g. 203.0.113.7/32)" ;;
+  WISHLIST_CHANNEL) echo "Update channel: main (every commit) or releases (tagged releases)" ;;
+  WISHLIST_REPO) echo "GitHub repository updates come from (owner/name)" ;;
+  *) echo "$1" ;;
+  esac
+}
+
+show_message() {
+  if wl_use_whiptail; then
+    whiptail --backtitle "$WL_BACKTITLE" --title "Wish List" --scrolltext --msgbox "$1" 20 76 </dev/tty >/dev/tty 2>&1
+  else
+    printf '%s\n' "$1" >&2
+  fi
+}
+
+# Prints the chosen tag: a key, SECRET_KEY, SAVE or QUIT.
+choose() {
+  local changed="$1" k choice i
+  if wl_use_whiptail; then
+    local -a items=()
+    for k in "${MENU_KEYS[@]}"; do items+=("$k" "$(shown "$k")"); done
+    items+=(SECRET_KEY "Regenerate (logs everyone out)")
+    items+=(SAVE "Save and restart Wish List${changed:+ (unsaved changes)}")
+    items+=(QUIT "Exit without saving")
+    whiptail --backtitle "$WL_BACKTITLE" --title "Wish List settings" \
+      --menu "Choose a setting to change:" 26 78 18 "${items[@]}" 2>&1 >/dev/tty </dev/tty || echo QUIT
+    return 0
+  fi
+  {
+    echo
+    echo "Wish List settings${changed:+ (unsaved changes)}:"
+    i=0
+    for k in "${MENU_KEYS[@]}"; do
+      i=$((i + 1))
+      printf '  %2d) %-18s %s\n' "$i" "$k" "$(shown "$k")"
+    done
+    echo "      secret             regenerate SECRET_KEY"
+    echo "      save               save and restart Wish List"
+    echo "      quit               exit without saving"
+    printf 'Choice (number or name): '
+  } >&2
+  wl_read_line choice || { echo QUIT; return 0; }
+  choice="${choice//[[:space:]]/}"
+  case "${choice,,}" in
+  save) echo SAVE ;;
+  quit | q | "") echo QUIT ;;
+  secret | secret_key) echo SECRET_KEY ;;
+  *)
+    if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#MENU_KEYS[@]})); then
+      echo "${MENU_KEYS[choice - 1]}"
+    else
+      echo "${choice^^}"
+    fi
+    ;;
+  esac
+}
+
+cmd_menu() {
+  need_root
+  if ! wl_can_prompt; then
+    wl_err "No terminal to show the menu on; use --get/--set (see --help)."
+    exit 1
+  fi
+  wl_open_answers || exit 1
+  make_work_copy
+  local changed="" tag cur new secret=""
+  while :; do
+    tag="$(choose "$changed")"
+    case "$tag" in
+    QUIT)
+      [[ -n "$changed" ]] && echo "Changes discarded." >&2
+      exit 0
+      ;;
+    SAVE)
+      if [[ -z "$changed" ]]; then
+        echo "Nothing changed." >&2
+        exit 0
+      fi
+      local err
+      if err="$(wl_apply_settings "$WORK" 2>&1)"; then
+        show_message "Saved. Wish List restarted."
+        exit 0
+      fi
+      show_message "$err"
+      exit 1
+      ;;
+    SECRET_KEY)
+      if wl_ask_yesno "Regenerate SECRET_KEY?
+
+Everyone is logged out and every share link (/s/...) stops working; personal links keep working. Share links can be regenerated in the app." n; then
+        WISHLIST_ENV="$WORK" wl_settings_set SECRET_KEY "$(openssl rand -hex 32)" && changed=1
+      fi
+      ;;
+    *)
+      local known=0 k
+      for k in "${MENU_KEYS[@]}"; do [[ "$k" == "$tag" ]] && known=1; done
+      if [[ $known == 0 ]]; then
+        wl_err "Unknown choice: $tag"
+        continue
+      fi
+      cur="$(WISHLIST_ENV="$WORK" wl_settings_get "$tag")" || cur=""
+      secret=""
+      is_secret "$tag" && secret=secret
+      if new="$(wl_ask_setting "$tag" "$(prompt_for "$tag")" "$cur" "$secret")"; then
+        if [[ "$new" != "$cur" ]]; then
+          WISHLIST_ENV="$WORK" wl_settings_set "$tag" "$new" && changed=1
+        fi
+      fi
+      ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+"") cmd_menu ;;
+--get)
+  [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+  wl_is_key "$2" || { wl_err "Unknown setting: $2"; exit 1; }
+  v="$(wl_settings_get "$2")" || exit 1
+  printf '%s\n' "$v"
+  ;;
+--set)
+  [[ $# -eq 3 ]] || { usage >&2; exit 2; }
+  cmd_set "$2" "$3"
+  ;;
+--list) printf '%s\n' "${WL_KEYS[@]}" ;;
+-h | --help) usage ;;
+*) usage >&2; exit 2 ;;
+esac

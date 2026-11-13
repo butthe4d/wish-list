@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# journalctl stand-in: `journalctl -u UNIT [-n N]` prints the stub service log.
+unit="" lines=10
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -u) unit="${2%.service}"; shift ;;
+  -n) lines="$2"; shift ;;
+  esac
+  shift
+done
+tail -n "$lines" "/var/log/stub-systemd/$unit.log" 2>/dev/null
+exit 0

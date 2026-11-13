@@ -1,0 +1,25 @@
+[Unit]
+Description=Wish List (household wishlist app)
+Documentation=https://github.com/butthe4d/wish-list
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wishlist
+Group=wishlist
+WorkingDirectory=/var/lib/wishlist
+EnvironmentFile=/etc/wishlist/wishlist.env
+Environment=PYTHONUNBUFFERED=1
+# `python -m`: the venv is built in /opt/wishlist.new and moved into place, so
+# its console scripts carry a stale shebang; the interpreter itself is fine.
+ExecStartPre=/opt/wishlist/.venv/bin/python -m wishlist.bootstrap
+ExecStart=/opt/wishlist/.venv/bin/python -m gunicorn -c python:wishlist.gunicorn_conf "wishlist:create_app()"
+Restart=on-failure
+RestartSec=5
+# No namespace sandboxing (PrivateTmp=, ProtectSystem=...): it can fail with
+# 226/NAMESPACE in unprivileged LXC containers.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
