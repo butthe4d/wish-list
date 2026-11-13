@@ -3,6 +3,10 @@ Description=Wish List (household wishlist app)
 Documentation=https://github.com/butthe4d/wish-list
 After=network-online.target
 Wants=network-online.target
+# A broken configuration (e.g. bad FETCH_DENY_CIDRS) stops after 5 failed
+# starts in 2 minutes instead of restarting forever.
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 Type=simple

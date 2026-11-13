@@ -112,10 +112,14 @@ wl_settings_get() {
 }
 
 # wl_settings_set KEY VALUE: validate, then replace (or append) the line
-# atomically, keeping the file root:wishlist 640.
+# atomically under the settings lock, keeping the file root:wishlist 640.
 wl_settings_set() {
+  wl_validate "$1" "$2" || return 1
+  wl_with_lock _wl_settings_write "$1" "$2"
+}
+
+_wl_settings_write() {
   local key="$1" value="$2" dir tmp line done=0
-  wl_validate "$key" "$value" || return 1
   dir="$(dirname "$WISHLIST_ENV")"
   mkdir -p "$dir" || return 1
   tmp="$(mktemp "$dir/.wishlist.env.XXXXXX")" || return 1
@@ -136,6 +140,34 @@ wl_settings_set() {
     return 1
   }
   wl_secure_env_file "$tmp" && mv -f "$tmp" "$WISHLIST_ENV"
+}
+
+# wl_with_lock CMD...: run CMD holding the Wish List maintenance lock
+# (flock on /etc/wishlist/.lock). Settings writes, backup/restore and code
+# swaps all take it; nested calls in the same process tree just run CMD.
+wl_with_lock() {
+  if [[ "${WL_LOCK_HELD:-0}" == 1 ]]; then
+    "$@"
+    return
+  fi
+  local lock="${WL_LOCK_FILE:-$(dirname "$WISHLIST_ENV")/.lock}"
+  mkdir -p "$(dirname "$lock")" || return 1
+  (
+    exec 9>>"$lock" || exit 1
+    if ! flock -w "${WL_LOCK_TIMEOUT:-600}" 9; then
+      wl_err "Another Wish List maintenance task is running (lock $lock)."
+      exit 1
+    fi
+    export WL_LOCK_HELD=1
+    "$@"
+  )
+}
+
+# wl_as_app_user CMD...: run CMD as the app user (keeps the environment).
+# Use it for every write into the data dir, which that user owns: a root
+# write there could be redirected by a symlink the app user planted.
+wl_as_app_user() {
+  (cd / && exec setpriv --reuid="$WL_USER" --regid="$WL_USER" --init-groups "$@")
 }
 
 wl_secure_env_file() {
@@ -228,8 +260,17 @@ for raw in re.split(r"[\s,]+", sys.argv[1]):
 # ---------------------------------------------------------------------------
 # Prompts: whiptail on a terminal, plain `read` otherwise. WISHLIST_ANSWERS
 # names a file of answers (one per line, empty line = default) that replaces
-# the terminal, for scripted runs and tests.
+# the terminal, for scripted runs and tests. Prompts never fail: Cancel, Esc,
+# end of input and timeouts all keep the default, so an unanswered install
+# finishes with defaults instead of aborting.
 # ---------------------------------------------------------------------------
+
+WL_BACKTITLE="Wish List"
+# Timeouts (seconds, read when asking): WISHLIST_PROMPT_TIMEOUT (default 60)
+# for "Configure Wish List now?", which then means No; WISHLIST_FIELD_TIMEOUT
+# (default 300) for every other question, which then keeps its default.
+wl_prompt_timeout() { printf '%s' "${WISHLIST_PROMPT_TIMEOUT:-60}"; }
+wl_field_timeout() { printf '%s' "${WISHLIST_FIELD_TIMEOUT:-300}"; }
 
 # Prints where answers come from; status 1 when nobody can answer.
 wl_answer_source() {
@@ -253,38 +294,66 @@ wl_use_whiptail() {
 # Call it in the main shell before prompting: the prompt helpers run inside
 # $(...), and a descriptor opened there would start from the top every time.
 wl_open_answers() {
-  [[ -n "${WL_ANSWER_FD:-}" ]] && return 0
   local src
   src="$(wl_answer_source)" || return 1
+  if [[ -n "${WL_ANSWER_FD:-}" ]]; then
+    [[ "$src" == "${WL_ANSWER_SRC:-}" ]] && return 0
+    exec {WL_ANSWER_FD}<&-
+  fi
   exec {WL_ANSWER_FD}<"$src"
+  WL_ANSWER_SRC="$src"
 }
 
-wl_read_line() { # varname [silent]
+# wl_read_line VAR [silent] [timeout]: status 1 on end of input or timeout.
+wl_read_line() {
   wl_open_answers || return 1
   local _line
-  if [[ "${2:-}" == silent && -z "${WISHLIST_ANSWERS:-}" ]]; then
-    IFS= read -r -s -u "$WL_ANSWER_FD" _line || return 1
+  local -a _opts=(-r -u "$WL_ANSWER_FD")
+  [[ -n "${3:-}" ]] && _opts+=(-t "$3")
+  [[ "${2:-}" == silent && -z "${WISHLIST_ANSWERS:-}" ]] && _opts+=(-s)
+  if ! IFS= read "${_opts[@]}" _line; then
     echo >&2
-  else
-    IFS= read -r -u "$WL_ANSWER_FD" _line || return 1
+    return 1
   fi
+  [[ "${2:-}" == silent && -z "${WISHLIST_ANSWERS:-}" ]] && echo >&2
   printf -v "$1" '%s' "$_line"
 }
 
-WL_BACKTITLE="Wish List"
+# wl_whiptail TIMEOUT ARGS...: whiptail on the terminal; prints its answer.
+# Status: whiptail's (0 ok, 1 cancel/no, 255 Esc) or 124 on timeout.
+wl_whiptail() {
+  local t="$1" rc=0
+  shift
+  timeout --foreground "$t" whiptail --backtitle "$WL_BACKTITLE" --title "Wish List" "$@" \
+    2>&1 >/dev/tty </dev/tty || rc=$?
+  if [[ $rc == 124 ]]; then
+    # whiptail was killed mid-screen: give the terminal back in a sane state.
+    stty sane </dev/tty 2>/dev/null || true
+    printf '\033[0m\033[H\033[2J' >/dev/tty 2>/dev/null || true
+  fi
+  return "$rc"
+}
 
-# wl_ask_yesno QUESTION [default y|n]: status 0 for yes.
+# wl_ask_yesno QUESTION [default y|n] [timeout]: status 0 for yes. Cancel,
+# Esc, end of input and timeout give the default.
 wl_ask_yesno() {
-  local q="$1" def="${2:-n}" ans
+  local q="$1" def="${2:-n}" t="${3:-$(wl_field_timeout)}" ans rc=0
   if wl_use_whiptail; then
     local -a dflt=()
     [[ "$def" == n ]] && dflt=(--defaultno)
-    whiptail --backtitle "$WL_BACKTITLE" --title "Wish List" "${dflt[@]}" --yesno "$q" 12 70 </dev/tty >/dev/tty 2>&1
-    return
+    wl_whiptail "$t" "${dflt[@]}" --yesno "$q" 14 74 >/dev/null || rc=$?
+    case "$rc" in
+    0) return 0 ;;
+    1) return 1 ;;
+    *) [[ "$def" == y ]]; return ;;
+    esac
   fi
   while :; do
     printf '%s [%s] ' "$q" "$([[ "$def" == y ]] && echo Y/n || echo y/N)" >&2
-    wl_read_line ans || { wl_err "No answer available."; return 2; }
+    if ! wl_read_line ans "" "$t"; then
+      [[ "$def" == y ]]
+      return
+    fi
     case "${ans,,}" in
     "") [[ "$def" == y ]]; return ;;
     y | yes) return 0 ;;
@@ -294,111 +363,135 @@ wl_ask_yesno() {
   done
 }
 
-# wl_ask_input PROMPT DEFAULT [secret]: prints the answer; status 1 on cancel.
+# wl_ask_input PROMPT DEFAULT [secret]: prints the answer. "-" clears the
+# value. Secret fields never show the current value (empty keeps it).
+# Status 1 (still printing DEFAULT) when the default was kept because of
+# Cancel, Esc, end of input or timeout.
 wl_ask_input() {
-  local prompt="$1" def="$2" secret="${3:-}" ans
+  local prompt="$1" def="$2" secret="${3:-}" ans rc=0
   if wl_use_whiptail; then
-    local box=--inputbox
-    [[ "$secret" == secret ]] && box=--passwordbox
-    ans="$(whiptail --backtitle "$WL_BACKTITLE" --title "Wish List" "$box" "$prompt" 12 74 "$def" 2>&1 >/dev/tty </dev/tty)" ||
+    if [[ "$secret" == secret ]]; then
+      ans="$(wl_whiptail "$(wl_field_timeout)" --passwordbox \
+        "$prompt"$'\n\n'"Leave empty to keep the current value; enter - to clear it." 14 74 "")" || rc=$?
+      [[ $rc == 0 && -z "$ans" ]] && ans="$def"
+    else
+      ans="$(wl_whiptail "$(wl_field_timeout)" --inputbox "$prompt"$'\n\n'"Enter - to clear the value." 14 74 "$def")" || rc=$?
+    fi
+    if [[ $rc != 0 ]]; then
+      printf '%s' "$def"
       return 1
-    printf '%s' "$ans"
-    return 0
-  fi
-  if [[ "$secret" == secret && -n "$def" ]]; then
-    printf '%s [keep current]: ' "$prompt" >&2
+    fi
   else
-    printf '%s [%s]: ' "$prompt" "$def" >&2
+    local hint="$def"
+    [[ "$secret" == secret && -n "$def" ]] && hint="keep current"
+    [[ -n "$def" ]] && hint+="; - clears"
+    printf '%s [%s]: ' "$prompt" "$hint" >&2
+    if ! wl_read_line ans "$secret" "$(wl_field_timeout)"; then
+      printf '%s' "$def"
+      return 1
+    fi
+    [[ -z "$ans" ]] && ans="$def"
   fi
-  wl_read_line ans "$secret" || { wl_err "No answer available."; return 1; }
-  [[ -z "$ans" ]] && ans="$def"
+  [[ "$ans" == - ]] && ans=""
   printf '%s' "$ans"
 }
 
 # wl_ask_setting KEY PROMPT DEFAULT [secret]: asks until wl_validate accepts;
-# prints the value. Status 1 on cancel / no more answers.
+# prints the value. Cancel/timeout/end of input keep DEFAULT.
 wl_ask_setting() {
   local key="$1" prompt="$2" def="$3" secret="${4:-}" v msg
   while :; do
-    v="$(wl_ask_input "$prompt" "$def" "$secret")" || return 1
+    if ! v="$(wl_ask_input "$prompt" "$def" "$secret")"; then
+      printf '%s' "$def"
+      return 0
+    fi
     if msg="$(wl_validate "$key" "$v" 2>&1)"; then
       printf '%s' "$v"
       return 0
     fi
     if wl_use_whiptail; then
-      whiptail --backtitle "$WL_BACKTITLE" --title "Invalid value" --msgbox "$msg" 10 70 </dev/tty >/dev/tty 2>&1
+      wl_whiptail "$(wl_field_timeout)" --msgbox "$msg" 10 70 >/dev/null || true
     else
       wl_err "$msg"
     fi
   done
 }
 
+# Container address for the default BASE_URL: first IPv4, else first IPv6
+# (bracketed), else 127.0.0.1.
 wl_container_ip() {
-  local ip=""
-  ip="$(hostname -I 2>/dev/null | awk '{print $1}')" || true
-  [[ -z "$ip" ]] && ip="$(ip -4 -o addr show scope global 2>/dev/null | awk '{split($4, a, "/"); print a[1]; exit}')"
-  printf '%s' "${ip:-127.0.0.1}"
+  local -a addrs=()
+  local a
+  read -r -a addrs <<<"$(hostname -I 2>/dev/null)" || true
+  if [[ ${#addrs[@]} -eq 0 ]]; then
+    read -r -a addrs <<<"$(ip -o addr show scope global 2>/dev/null | awk '{split($4, a, "/"); printf "%s ", a[1]}')" || true
+  fi
+  for a in "${addrs[@]}"; do
+    [[ "$a" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && { printf '%s' "$a"; return 0; }
+  done
+  for a in "${addrs[@]}"; do
+    [[ "$a" == *:* ]] && { printf '[%s]' "$a"; return 0; }
+  done
+  printf '127.0.0.1'
 }
 
 wl_is_unattended() {
   [[ "${WISHLIST_UNATTENDED:-0}" == 1 || "${PHS_SILENT:-0}" == 1 ]] && return 0
   [[ "${var_unattended:-}" =~ ^(yes|true|1)$ || "${UNATTENDED:-}" =~ ^(yes|true|1)$ ]] && return 0
+  # The engine's own "no questions" modes (MODE is exported into the container).
+  [[ "${MODE:-}" =~ ^(mydefaults|userdefaults|appdefaults|3|4)$ ]] && return 0
   ! wl_can_prompt
 }
 
 # wl_collect_settings: write the complete settings file, asking
-# "Configure Wish List now?" first unless unattended (defaults otherwise).
-# Existing SECRET_KEY is kept; a new one is generated otherwise.
+# "Configure Wish List now?" first unless unattended. Defaults are the
+# current settings when the file exists (re-run), else the documented ones.
+# The existing SECRET_KEY is kept; a new one is generated otherwise.
 wl_collect_settings() {
-  local ip base_url name email lang channel repo secret
-  local smtp_host="" smtp_port=587 smtp_sec=starttls smtp_user="" smtp_pass="" smtp_from=""
-  local sms_token="" sms_sender="" cidrs=""
-  ip="$(wl_container_ip)"
-  base_url="http://$ip:$WL_PORT"
-  name=Admin
-  email=admin@example.com
-  lang=en
-  channel="${WISHLIST_CHANNEL:-main}"
-  repo="${WISHLIST_REPO:-$WL_DEFAULT_REPO}"
+  local -A v=(
+    [BASE_URL]="http://$(wl_container_ip):$WL_PORT" [SECRET_KEY]=""
+    [DATABASE_URL]="sqlite:///$WL_DATA_DIR/wishlist.db" [DATA_DIR]="$WL_DATA_DIR"
+    [ADMIN_NAME]=Admin [ADMIN_EMAIL]=admin@example.com [DEFAULT_LANGUAGE]=en
+    [SMTP_HOST]="" [SMTP_PORT]=587 [SMTP_SECURITY]=starttls [SMTP_USER]="" [SMTP_PASSWORD]="" [SMTP_FROM]=""
+    [GSMSERVICE_TOKEN]="" [GSMSERVICE_SENDER]="" [FETCH_DENY_CIDRS]=""
+    [WISHLIST_CHANNEL]="${WISHLIST_CHANNEL:-main}" [WISHLIST_REPO]="${WISHLIST_REPO:-$WL_DEFAULT_REPO}"
+  )
+  local k cur
+  for k in "${WL_KEYS[@]}"; do
+    if cur="$(wl_settings_get "$k" 2>/dev/null)"; then v[$k]="$cur"; fi
+  done
 
   if ! wl_is_unattended && wl_open_answers && wl_ask_yesno "Configure Wish List now?
 
-No: use defaults (address $base_url, admin admin@example.com, English, no email or SMS). Everything can be changed later with: wishlist-settings" y; then
-    base_url="$(wl_ask_setting BASE_URL "Address people use to open the app (BASE_URL)" "$base_url")" || return 1
-    name="$(wl_ask_input "First admin's name" "$name")" || return 1
-    email="$(wl_ask_setting ADMIN_EMAIL "First admin's email" "$email")" || return 1
-    lang="$(wl_ask_setting DEFAULT_LANGUAGE "Default language (en or pl)" "$lang")" || return 1
-    if wl_ask_yesno "Send email (links, notifications) through an SMTP server?" n; then
-      smtp_host="$(wl_ask_input "SMTP host" "")" || return 1
-      smtp_port="$(wl_ask_setting SMTP_PORT "SMTP port" "$smtp_port")" || return 1
-      smtp_sec="$(wl_ask_setting SMTP_SECURITY "SMTP security (starttls, ssl or none)" "$smtp_sec")" || return 1
-      smtp_user="$(wl_ask_input "SMTP user (empty for none)" "")" || return 1
-      smtp_pass="$(wl_ask_input "SMTP password" "" secret)" || return 1
-      smtp_from="$(wl_ask_setting SMTP_FROM "Sender address (empty = SMTP user)" "")" || return 1
+No: use defaults (address ${v[BASE_URL]}, admin ${v[ADMIN_EMAIL]}, language ${v[DEFAULT_LANGUAGE]}, no email or SMS). Everything can be changed later with: wishlist-settings
+
+(No answer within $(wl_prompt_timeout)s means No.)" n "$(wl_prompt_timeout)"; then
+    v[BASE_URL]="$(wl_ask_setting BASE_URL "Address people use to open the app (BASE_URL)" "${v[BASE_URL]}")"
+    v[ADMIN_NAME]="$(wl_ask_input "First admin's name" "${v[ADMIN_NAME]}")" || true
+    v[ADMIN_EMAIL]="$(wl_ask_setting ADMIN_EMAIL "First admin's email" "${v[ADMIN_EMAIL]}")"
+    v[DEFAULT_LANGUAGE]="$(wl_ask_setting DEFAULT_LANGUAGE "Default language (en or pl)" "${v[DEFAULT_LANGUAGE]}")"
+    if wl_ask_yesno "Send email (links, notifications) through an SMTP server?" "$([[ -n "${v[SMTP_HOST]}" ]] && echo y || echo n)"; then
+      v[SMTP_HOST]="$(wl_ask_input "SMTP host" "${v[SMTP_HOST]}")" || true
+      v[SMTP_PORT]="$(wl_ask_setting SMTP_PORT "SMTP port" "${v[SMTP_PORT]}")"
+      v[SMTP_SECURITY]="$(wl_ask_setting SMTP_SECURITY "SMTP security (starttls, ssl or none)" "${v[SMTP_SECURITY]}")"
+      v[SMTP_USER]="$(wl_ask_input "SMTP user (empty for none)" "${v[SMTP_USER]}")" || true
+      v[SMTP_PASSWORD]="$(wl_ask_input "SMTP password" "${v[SMTP_PASSWORD]}" secret)" || true
+      v[SMTP_FROM]="$(wl_ask_setting SMTP_FROM "Sender address (empty = SMTP user)" "${v[SMTP_FROM]}")"
     fi
-    if wl_ask_yesno "Send SMS through gsmservice.pl?" n; then
-      sms_token="$(wl_ask_input "gsmservice.pl API token" "" secret)" || return 1
-      sms_sender="$(wl_ask_input "SMS sender name" "")" || return 1
+    if wl_ask_yesno "Send SMS through gsmservice.pl?" "$([[ -n "${v[GSMSERVICE_TOKEN]}" ]] && echo y || echo n)"; then
+      v[GSMSERVICE_TOKEN]="$(wl_ask_input "gsmservice.pl API token" "${v[GSMSERVICE_TOKEN]}" secret)" || true
+      v[GSMSERVICE_SENDER]="$(wl_ask_input "SMS sender name" "${v[GSMSERVICE_SENDER]}")" || true
     fi
-    cidrs="$(wl_ask_setting FETCH_DENY_CIDRS "Extra networks the picture fetcher must never reach, e.g. your public IP as 203.0.113.7/32 (empty for none)" "")" || return 1
+    v[FETCH_DENY_CIDRS]="$(wl_ask_setting FETCH_DENY_CIDRS "Extra networks the picture fetcher must never reach, e.g. your public IP as 203.0.113.7/32 (empty for none)" "${v[FETCH_DENY_CIDRS]}")"
   fi
 
-  secret="$(wl_settings_get SECRET_KEY 2>/dev/null)" || secret=""
-  [[ -n "$secret" ]] || secret="$(openssl rand -hex 32)" || return 1
-
-  local -A v=(
-    [BASE_URL]="$base_url" [SECRET_KEY]="$secret"
-    [DATABASE_URL]="sqlite:///$WL_DATA_DIR/wishlist.db" [DATA_DIR]="$WL_DATA_DIR"
-    [ADMIN_NAME]="$name" [ADMIN_EMAIL]="$email" [DEFAULT_LANGUAGE]="$lang"
-    [SMTP_HOST]="$smtp_host" [SMTP_PORT]="$smtp_port" [SMTP_SECURITY]="$smtp_sec"
-    [SMTP_USER]="$smtp_user" [SMTP_PASSWORD]="$smtp_pass" [SMTP_FROM]="$smtp_from"
-    [GSMSERVICE_TOKEN]="$sms_token" [GSMSERVICE_SENDER]="$sms_sender"
-    [FETCH_DENY_CIDRS]="$cidrs" [WISHLIST_CHANNEL]="$channel" [WISHLIST_REPO]="$repo"
-  )
-  local k
+  [[ -n "${v[SECRET_KEY]}" ]] || v[SECRET_KEY]="$(openssl rand -hex 32)" || return 1
+  local tmp
+  tmp="$(mktemp "$(dirname "$WISHLIST_ENV")/.wishlist.env.new.XXXXXX")" || return 1
   for k in "${WL_KEYS[@]}"; do
-    wl_settings_set "$k" "${v[$k]}" || return 1
+    WISHLIST_ENV="$tmp" wl_settings_set "$k" "${v[$k]}" || { rm -f "$tmp"; return 1; }
   done
+  wl_with_lock mv -f "$tmp" "$WISHLIST_ENV"
 }
 
 # ---------------------------------------------------------------------------
@@ -427,6 +520,16 @@ wl_run_as_app() {
   )
 }
 
+# wl_shielded CMD...: run CMD (command or function) through the engine's
+# SIGHUP shield when it is loaded, so a closed console doesn't kill it.
+wl_shielded() {
+  if declare -F _cs_shield_hangup >/dev/null; then
+    _cs_shield_hangup "$@"
+  else
+    "$@"
+  fi
+}
+
 # wl_health [timeout_s]: wait until /healthz answers "ok".
 wl_health() {
   local timeout="${1:-${WISHLIST_HEALTH_TIMEOUT:-30}}" end
@@ -442,8 +545,12 @@ wl_health() {
 
 # wl_apply_settings NEW_FILE: install NEW_FILE as the settings file, restart
 # and health-check; on failure put the previous file back, restart, print
-# the service log and return 1.
+# the service log and return 1. Holds the lock throughout.
 wl_apply_settings() {
+  wl_with_lock _wl_apply_settings "$@"
+}
+
+_wl_apply_settings() {
   local new="$1" old log
   old="$(mktemp "$(dirname "$WISHLIST_ENV")/.wishlist.env.prev.XXXXXX")" || return 1
   cp -p "$WISHLIST_ENV" "$old" || return 1
@@ -522,11 +629,30 @@ wl_install_ref() {
     return 1
   fi
   rm -f "$log"
-  chown -R root:root "$stage" && chmod 755 "$stage" || return 1
-  if [[ -e "$target" ]]; then
-    rm -rf "$target.prev" && mv "$target" "$target.prev" || return 1
+  if ! { chown -R root:root "$stage" && chmod 755 "$stage"; }; then
+    rm -rf "$stage"
+    return 1
   fi
-  mv "$stage" "$target"
+  wl_with_lock _wl_swap_dirs "$stage" "$target"
+}
+
+# Move TARGET to TARGET.prev and STAGE to TARGET; on failure put TARGET back.
+_wl_swap_dirs() {
+  local stage="$1" target="$2" had=0
+  if [[ -e "$target" ]]; then
+    had=1
+    if ! { rm -rf "$target.prev" && mv -T "$target" "$target.prev"; }; then
+      wl_err "Could not move $target aside."
+      rm -rf "$stage"
+      return 1
+    fi
+  fi
+  if ! mv -T "$stage" "$target"; then
+    wl_err "Could not move the new code into $target."
+    if [[ $had == 1 && ! -e "$target" ]]; then mv -T "$target.prev" "$target" || true; fi
+    rm -rf "$stage"
+    return 1
+  fi
 }
 
 # wl_latest_ref CHANNEL: newest commit sha on main (main), or newest release
@@ -575,41 +701,66 @@ wl_db_path() {
   fi
 }
 
-# wl_backup: print the new backup directory.
-wl_backup() {
-  local dir db
+# wl_backup: print the new backup directory (root-only). The database copy
+# is made and read by the app user (sqlite creates WAL files, which must stay
+# the app user's; and root must not read a path the app user controls);
+# images are copied without following links.
+wl_backup() { wl_with_lock _wl_backup; }
+
+_wl_backup() {
+  local dir db tmp
   db="$(wl_db_path)"
   mkdir -p "$WL_BACKUP_ROOT" && chmod 700 "$WL_BACKUP_ROOT" || return 1
   dir="$(mktemp -d "$WL_BACKUP_ROOT/$(date -u +%Y%m%dT%H%M%SZ).XXXX")" || return 1
   if [[ -f "$db" ]]; then
-    sqlite3 "$db" ".backup '$dir/wishlist.db'" || { wl_err "Database backup failed."; rm -rf "$dir"; return 1; }
+    tmp="$(dirname "$db")/.wishlist-backup.db"
+    # shellcheck disable=SC2016
+    if ! wl_as_app_user bash -c 'rm -f "$2" && sqlite3 "$1" ".backup \"$2\""' _ "$db" "$tmp" ||
+      ! wl_as_app_user cat "$tmp" >"$dir/wishlist.db"; then
+      wl_err "Database backup failed."
+      wl_as_app_user rm -f "$tmp"
+      rm -rf "$dir"
+      return 1
+    fi
+    wl_as_app_user rm -f "$tmp"
   fi
   if [[ -d "$WL_DATA_DIR/images" ]]; then
-    cp -a "$WL_DATA_DIR/images" "$dir/images" || { rm -rf "$dir"; return 1; }
+    cp -a --no-dereference "$WL_DATA_DIR/images" "$dir/images" || { rm -rf "$dir"; return 1; }
   else
     mkdir "$dir/images"
   fi
-  [[ -f "$WISHLIST_ENV" ]] && { cp -p "$WISHLIST_ENV" "$dir/wishlist.env" || return 1; }
-  [[ -f "$WL_VERSION_FILE" ]] && { cp -p "$WL_VERSION_FILE" "$dir/wishlist_version.txt" || return 1; }
+  if [[ -f "$WISHLIST_ENV" ]]; then cp -p "$WISHLIST_ENV" "$dir/wishlist.env" || return 1; fi
+  if [[ -f "$WL_VERSION_FILE" ]]; then cp -p "$WL_VERSION_FILE" "$dir/wishlist_version.txt" || return 1; fi
   printf '%s\n' "$dir"
 }
 
 # wl_restore DIR: put a backup's database, images, settings and version back.
-# Stop the service first.
-wl_restore() {
+# Stop the service first. Everything inside the data dir is written by the
+# app user (root only reads the backup and pipes it over).
+wl_restore() { wl_with_lock _wl_restore "$@"; }
+
+_wl_restore() {
   local dir="${1%/}" db
   [[ -d "$dir" ]] || { wl_err "No such backup: $dir"; return 1; }
   if [[ -f "$dir/wishlist.env" ]]; then
     cp -p "$dir/wishlist.env" "$WISHLIST_ENV" && wl_secure_env_file "$WISHLIST_ENV" || return 1
   fi
-  [[ -f "$dir/wishlist_version.txt" ]] && { cp -p "$dir/wishlist_version.txt" "$WL_VERSION_FILE" || return 1; }
+  if [[ -f "$dir/wishlist_version.txt" ]]; then cp -p "$dir/wishlist_version.txt" "$WL_VERSION_FILE" || return 1; fi
   db="$(wl_db_path)"
   if [[ -f "$dir/wishlist.db" ]]; then
-    rm -f "$db-wal" "$db-shm" "$db-journal"
-    install -o "$WL_USER" -g "$WL_USER" -m 640 "$dir/wishlist.db" "$db" || return 1
+    # shellcheck disable=SC2016
+    wl_as_app_user bash -c 'set -e; umask 027; rm -f "$1-wal" "$1-shm" "$1-journal" "$1.restore"
+      cat >"$1.restore"; mv -f "$1.restore" "$1"' _ "$db" <"$dir/wishlist.db" ||
+      { wl_err "Restoring the database failed."; return 1; }
   fi
   if [[ -d "$dir/images" ]]; then
-    rm -rf "$WL_DATA_DIR/images" && cp -a "$dir/images" "$WL_DATA_DIR/images" || return 1
+    # shellcheck disable=SC2016
+    tar -C "$dir" -cf - images | wl_as_app_user bash -c 'set -e; cd "$1"
+      rm -rf .images.restore .images.old; mkdir .images.restore
+      tar -C .images.restore --strip-components=1 -xf -
+      if [ -e images ] || [ -L images ]; then mv -T images .images.old; fi
+      mv -T .images.restore images; rm -rf .images.old' _ "$WL_DATA_DIR" ||
+      { wl_err "Restoring the pictures failed."; return 1; }
   fi
 }
 

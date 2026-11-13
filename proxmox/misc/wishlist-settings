@@ -5,6 +5,7 @@
 #   wishlist-settings --get KEY       print one setting
 #   wishlist-settings --set KEY VALUE validate, save, restart; restores the
 #                                     previous settings if the app fails to start
+#   wishlist-settings --set KEY -     same, value read from stdin (for secrets)
 #   wishlist-settings --list          print all setting names
 set -uo pipefail
 
@@ -18,6 +19,11 @@ usage() {
 Usage: wishlist-settings                  open the settings menu
        wishlist-settings --get KEY        print the value of KEY
        wishlist-settings --set KEY VALUE  change KEY, restart Wish List
+       wishlist-settings --set KEY -      same, reading the value from stdin
+                                          (use this for passwords and tokens,
+                                          so they don't appear in the process
+                                          list or shell history), e.g.
+                                          read -rs p; printf '%s' "\$p" | wishlist-settings --set SMTP_PASSWORD -
        wishlist-settings --list           list setting names
 
 Settings live in $WISHLIST_ENV. Changing ADMIN_NAME or ADMIN_EMAIL only
@@ -34,19 +40,37 @@ need_root() {
 
 # Copy of the settings file to edit; applied with wl_apply_settings.
 WORK=""
+WORK_BASE=""
 make_work_copy() {
   WORK="$(mktemp "$(dirname "$WISHLIST_ENV")/.wishlist.env.edit.XXXXXX")" || exit 1
   trap 'rm -f "$WORK"' EXIT
   cp -p "$WISHLIST_ENV" "$WORK" || exit 1
+  WORK_BASE="$(sha256sum <"$WISHLIST_ENV")"
+}
+
+# Under the lock: refuse if someone else changed the file since the copy.
+apply_work_copy() {
+  if [[ "$(sha256sum <"$WISHLIST_ENV")" != "$WORK_BASE" ]]; then
+    wl_err "The settings were changed by someone else meanwhile; nothing saved. Run wishlist-settings again."
+    return 1
+  fi
+  wl_apply_settings "$WORK"
+}
+
+set_locked() {
+  make_work_copy
+  WISHLIST_ENV="$WORK" wl_settings_set "$1" "$2" || exit 1
+  wl_apply_settings "$WORK" || exit 1
 }
 
 cmd_set() {
   local key="$1" value="$2"
   need_root
+  if [[ "$value" == - ]]; then
+    value="$(cat)"
+  fi
   wl_validate "$key" "$value" || exit 1
-  make_work_copy
-  WISHLIST_ENV="$WORK" wl_settings_set "$key" "$value" || exit 1
-  wl_apply_settings "$WORK" || exit 1
+  wl_with_lock set_locked "$key" "$value" || exit 1
   echo "Saved $key; Wish List restarted."
 }
 
@@ -97,7 +121,7 @@ prompt_for() {
 
 show_message() {
   if wl_use_whiptail; then
-    whiptail --backtitle "$WL_BACKTITLE" --title "Wish List" --scrolltext --msgbox "$1" 20 76 </dev/tty >/dev/tty 2>&1
+    wl_whiptail "$(wl_field_timeout)" --scrolltext --msgbox "$1" 20 76 >/dev/null || true
   else
     printf '%s\n' "$1" >&2
   fi
@@ -112,8 +136,8 @@ choose() {
     items+=(SECRET_KEY "Regenerate (logs everyone out)")
     items+=(SAVE "Save and restart Wish List${changed:+ (unsaved changes)}")
     items+=(QUIT "Exit without saving")
-    whiptail --backtitle "$WL_BACKTITLE" --title "Wish List settings" \
-      --menu "Choose a setting to change:" 26 78 18 "${items[@]}" 2>&1 >/dev/tty </dev/tty || echo QUIT
+    # Cancel, Esc or no choice within the field timeout: quit without saving.
+    wl_whiptail "$(wl_field_timeout)" --menu "Choose a setting to change:" 26 78 18 "${items[@]}" || echo QUIT
     return 0
   fi
   {
@@ -129,7 +153,7 @@ choose() {
     echo "      quit               exit without saving"
     printf 'Choice (number or name): '
   } >&2
-  wl_read_line choice || { echo QUIT; return 0; }
+  wl_read_line choice "" "$(wl_field_timeout)" || { echo QUIT; return 0; }
   choice="${choice//[[:space:]]/}"
   case "${choice,,}" in
   save) echo SAVE ;;
@@ -167,7 +191,7 @@ cmd_menu() {
         exit 0
       fi
       local err
-      if err="$(wl_apply_settings "$WORK" 2>&1)"; then
+      if err="$(wl_with_lock apply_work_copy 2>&1)"; then
         show_message "Saved. Wish List restarted."
         exit 0
       fi

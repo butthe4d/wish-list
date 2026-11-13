@@ -53,14 +53,19 @@ if [[ -n "${WISHLIST_SOURCE_DIR:-}" ]]; then
 else
   WISHLIST_REF="${WISHLIST_REF:-$(wl_latest_ref "$(wl_settings_get WISHLIST_CHANNEL)")}"
 fi
-wl_install_ref "$WISHLIST_REF" "$WL_APP_DIR"
+# Re-run on an existing install: the code dir is swapped, so stop the app first.
+if systemctl is-active --quiet "$WL_SERVICE" 2>/dev/null; then
+  systemctl stop "$WL_SERVICE"
+fi
+# Long steps run shielded from SIGHUP: closing the console must not kill pip.
+wl_shielded wl_install_ref "$WISHLIST_REF" "$WL_APP_DIR"
 echo "$WISHLIST_REF" >"$WL_VERSION_FILE"
 msg_ok "Installed Wish List $WISHLIST_REF"
 
 msg_info "Creating database and first admin"
 # Run once here (not only in the unit's ExecStartPre) so the one-time admin
 # link is captured from stdout instead of landing in the journal.
-boot_out="$(wl_run_as_app "$WL_APP_DIR/.venv/bin/python" -m wishlist.bootstrap)"
+boot_out="$(wl_shielded wl_run_as_app "$WL_APP_DIR/.venv/bin/python" -m wishlist.bootstrap)"
 admin_link="$(sed -n 's/^Admin link: //p' <<<"$boot_out" | head -n 1)"
 unset boot_out
 if [[ -n "$admin_link" ]]; then
@@ -87,7 +92,13 @@ cleanup_lxc
 
 echo -e "${INFO:-}${YW:-} Wish List is running on $(wl_settings_get BASE_URL)${CL:-}"
 if [[ -n "$admin_link" ]]; then
-  echo -e "${INFO:-}${YW:-} Sign in as the first admin with this link (also saved in $WL_CREDS_FILE):${CL:-}"
-  echo -e "${TAB:-   }Admin link: ${admin_link}"
+  # Only onto a live terminal: after a console hangup the engine sends this
+  # output to its install log, and the link is a login.
+  if [[ -t 1 && "${_CS_HANGUP:-0}" != 1 ]]; then
+    echo -e "${INFO:-}${YW:-} Sign in as the first admin with this link (also saved in $WL_CREDS_FILE):${CL:-}"
+    echo -e "${TAB:-   }Admin link: ${admin_link}"
+  else
+    echo -e "${INFO:-}${YW:-} The first admin's sign-in link is in $WL_CREDS_FILE (cat $WL_CREDS_FILE)${CL:-}"
+  fi
 fi
 echo -e "${INFO:-}${YW:-} Change settings any time with: wishlist-settings${CL:-}"

@@ -30,6 +30,7 @@ install -m 755 "$REPO/proxmox/tests/stubs/journalctl" /usr/local/bin/journalctl
 
 ENV_FILE=/etc/wishlist/wishlist.env
 LIB=/usr/local/lib/wishlist/wishlist-lib.sh
+collect() { (wl_collect_settings); } # own shell: fresh answer descriptor
 health() { curl -fsS --max-time 5 http://127.0.0.1:8000/healthz 2>/dev/null; }
 app_pid() { cat /run/stub-systemd/wishlist.pid 2>/dev/null; }
 
@@ -50,7 +51,7 @@ fi
 eq "/healthz answers ok" "ok" "$(health)"
 check "creds file has the admin link" grep -q '^Admin link: http://' /root/wishlist.creds
 eq "creds file is 600 root" "600 root" "$(stat -c '%a %U' /root/wishlist.creds)"
-check "install output shows the admin link" grep -q 'Admin link: http://' /tmp/install.out
+check "install output (not a terminal) points to the creds file" grep -q 'sign-in link is in /root/wishlist.creds' /tmp/install.out
 eq "settings file is 640 root:wishlist" "640 root:wishlist" "$(stat -c '%a %U:%G' "$ENV_FILE")"
 eq "version file records the ref" "local" "$(cat /opt/wishlist_version.txt)"
 check "lib installed" test -f "$LIB"
@@ -93,6 +94,7 @@ check "wl_run_as_app passes the settings" grep -q '^SECRET_KEY=' <<<"$app_env"
 check "wl_run_as_app drops the caller's environment" bash -c "! grep -q '^WL_LEAK_CHECK=' <<<\"\$1\"" _ "$app_env"
 eq "wl_run_as_app runs as wishlist" wishlist "$(wl_run_as_app /usr/bin/id -un)"
 admin_key="$(sed -n 's|^Admin link: .*/u/||p' /root/wishlist.creds)"
+check "admin key not in install output (not a terminal)" bash -c "! grep -qF -- '$admin_key' /tmp/install.out"
 check "admin key not in service log" bash -c "! grep -qF -- '$admin_key' /var/log/stub-systemd/wishlist.log"
 check "admin key not in engine log" bash -c "! grep -qF -- '$admin_key' /var/log/stub-std.log"
 
@@ -157,8 +159,9 @@ check "validation message names the setting" grep -q FETCH_DENY_CIDRS <<<"$msg"
 
 # --- 4. wishlist-settings --get/--set ---------------------------------------------
 echo "== wishlist-settings =="
-WISHLIST_HEALTH_TIMEOUT=60 wishlist-settings --set SMTP_PASSWORD "p'a\$s #x" >/tmp/set.out 2>&1
-eq "--set exits 0" 0 "$?"
+printf '%s' "p'a\$s #x" | WISHLIST_HEALTH_TIMEOUT=60 wishlist-settings --set SMTP_PASSWORD - >/tmp/set.out 2>&1
+eq "--set KEY - (value on stdin) exits 0" 0 "$?"
+check "--help documents --set KEY -" bash -c "wishlist-settings --help | grep -q -- '--set KEY -'"
 eq "--get returns the value byte-for-byte" "p'a\$s #x" "$(wishlist-settings --get SMTP_PASSWORD)"
 eq "service healthy after --set" ok "$(health)"
 eq "service saw the value (bash-loaded env)" "p'a\$s #x" \
@@ -201,7 +204,7 @@ n
 203.0.113.7/32
 ANS
 rm -f /tmp/interactive.env
-WISHLIST_ENV=/tmp/interactive.env WISHLIST_ANSWERS=$A wl_collect_settings >/tmp/interactive.out 2>&1
+WISHLIST_ENV=/tmp/interactive.env WISHLIST_ANSWERS=$A collect >/tmp/interactive.out 2>&1
 eq "wl_collect_settings exits 0" 0 "$?"
 ie() { WISHLIST_ENV=/tmp/interactive.env wl_settings_get "$1"; }
 eq "answers: BASE_URL" "https://wish.example.org" "$(ie BASE_URL)"
@@ -217,7 +220,7 @@ eq "answers: FETCH_DENY_CIDRS" "203.0.113.7/32" "$(ie FETCH_DENY_CIDRS)"
 check "rejected answers are explained" grep -q "DEFAULT_LANGUAGE" /tmp/interactive.out
 rm -f /tmp/unattended.env
 printf 'n\n' >"$A"
-WISHLIST_ENV=/tmp/unattended.env WISHLIST_ANSWERS=$A wl_collect_settings >/dev/null 2>&1
+WISHLIST_ENV=/tmp/unattended.env WISHLIST_ANSWERS=$A collect >/dev/null 2>&1
 eq "answering no keeps defaults" "admin@example.com" "$(WISHLIST_ENV=/tmp/unattended.env wl_settings_get ADMIN_EMAIL)"
 
 printf '%s\n' BASE_URL "https://menu.example.org" save >"$A"
@@ -227,10 +230,127 @@ eq "menu edit saved" "https://menu.example.org" "$(wishlist-settings --get BASE_
 eq "service healthy after menu save" ok "$(health)"
 check "menu masks the SMTP password" bash -c "! grep -qF \"p'a\" /tmp/menu.out"
 
+# --- 5b. Clearing, timeouts, cancel, engine modes -------------------------------
+echo "== prompts: clearing, timeouts, cancel/Esc, engine modes =="
+secret_before="$(WISHLIST_ENV=/tmp/interactive.env wl_settings_get SECRET_KEY)"
+printf '%s\n' y "" "" "" "" "" "" "" "" - "" "" "" - >"$A"
+WISHLIST_ENV=/tmp/interactive.env WISHLIST_ANSWERS=$A collect >/dev/null 2>&1
+eq "re-run keeps current values as defaults" "https://wish.example.org" "$(ie BASE_URL)"
+eq "'-' clears a value (SMTP_USER)" "" "$(ie SMTP_USER)"
+eq "empty answer keeps a secret" "s3cr'et" "$(ie SMTP_PASSWORD)"
+eq "'-' clears FETCH_DENY_CIDRS" "" "$(ie FETCH_DENY_CIDRS)"
+eq "re-run keeps SECRET_KEY" "$secret_before" "$(ie SECRET_KEY)"
+
+printf 'y\n' >"$A"
+rm -f /tmp/mode.env
+MODE=appdefaults WISHLIST_ENV=/tmp/mode.env WISHLIST_ANSWERS=$A collect </dev/null >/tmp/mode.out 2>&1
+check "engine MODE=appdefaults asks nothing" bash -c "! grep -q 'Configure Wish List now' /tmp/mode.out"
+eq "engine MODE=appdefaults uses defaults" "admin@example.com" "$(WISHLIST_ENV=/tmp/mode.env wl_settings_get ADMIN_EMAIL)"
+
+rm -f /tmp/fifo /tmp/timeout.env
+mkfifo /tmp/fifo
+sleep 60 >/tmp/fifo &
+holder=$!
+start=$SECONDS
+WISHLIST_PROMPT_TIMEOUT=2 WISHLIST_ENV=/tmp/timeout.env WISHLIST_ANSWERS=/tmp/fifo collect >/dev/null 2>&1
+eq "no answer to the first question: exits 0" 0 "$?"
+check "first question times out quickly" test $((SECONDS - start)) -lt 10
+eq "first-question timeout means defaults" "admin@example.com" "$(WISHLIST_ENV=/tmp/timeout.env wl_settings_get ADMIN_EMAIL)"
+kill "$holder" 2>/dev/null
+rm -f /tmp/fifo /tmp/timeout.env
+mkfifo /tmp/fifo
+{ echo y; sleep 60; } >/tmp/fifo &
+holder=$!
+start=$SECONDS
+WISHLIST_FIELD_TIMEOUT=1 WISHLIST_ENV=/tmp/timeout.env WISHLIST_ANSWERS=/tmp/fifo collect >/dev/null 2>&1
+eq "unanswered fields: exits 0" 0 "$?"
+check "unanswered fields time out" test $((SECONDS - start)) -lt 20
+eq "unanswered fields keep defaults" "en" "$(WISHLIST_ENV=/tmp/timeout.env wl_settings_get DEFAULT_LANGUAGE)"
+kill "$holder" 2>/dev/null
+
+# whiptail paths, on a pseudo-terminal (script) with a scripted whiptail.
+mkdir -p /tmp/fakewt
+cat >/tmp/fakewt/whiptail <<'WT'
+#!/usr/bin/env bash
+# STUB_WT: esc|cancel -> Esc/Cancel everywhere except "Configure now?" (yes);
+# enter -> accept every prefilled value; hang -> never answer.
+printf '%q ' "$@" >>/tmp/wt.log; echo >>/tmp/wt.log
+args="$*"
+[[ "$STUB_WT" == hang ]] && exec sleep 600
+if [[ "$args" == *--yesno* ]]; then
+  [[ "$args" == *"Configure Wish List now?"* ]] && exit 0
+  [[ "$STUB_WT" == enter ]] && exit 0
+fi
+case "$STUB_WT" in
+esc) exit 255 ;;
+cancel) exit 1 ;;
+enter)
+  [[ "$args" == *--passwordbox* ]] && exit 0
+  [[ "$args" == *--inputbox* ]] && printf '%s' "${@: -1}" >&2
+  exit 0
+  ;;
+esac
+WT
+chmod +x /tmp/fakewt/whiptail
+on_tty() { # env assignments... -- runs wl_collect_settings on a pty
+  script -qec "env PATH=/tmp/fakewt:\$PATH TERM=xterm $* bash -c '. $LIB; wl_collect_settings'" /dev/null >/dev/null 2>&1
+}
+for mode in esc cancel; do
+  cp /tmp/interactive.env /tmp/wt.env
+  sum="$(sha256sum </tmp/wt.env)"
+  rm -f /tmp/wt.log
+  on_tty STUB_WT=$mode WISHLIST_ENV=/tmp/wt.env
+  eq "whiptail $mode everywhere: exits 0" 0 "$?"
+  check "whiptail $mode: whiptail was used" grep -q -- '--inputbox' /tmp/wt.log
+  eq "whiptail $mode keeps every value" "$sum" "$(sha256sum </tmp/wt.env)"
+done
+cp /tmp/interactive.env /tmp/wt.env
+rm -f /tmp/wt.log
+on_tty STUB_WT=enter WISHLIST_ENV=/tmp/wt.env
+eq "whiptail enter: exits 0" 0 "$?"
+eq "empty passwordbox keeps the secret" "s3cr'et" "$(WISHLIST_ENV=/tmp/wt.env wl_settings_get SMTP_PASSWORD)"
+check "passwordbox starts empty (secret not on argv)" bash -c "grep -- '--passwordbox' /tmp/wt.log | grep -q \"14 74 ''\" && ! grep -qF 's3cr' /tmp/wt.log"
+rm -f /tmp/wt.env
+start=$SECONDS
+on_tty STUB_WT=hang WISHLIST_PROMPT_TIMEOUT=2 WISHLIST_ENV=/tmp/wt.env
+eq "whiptail never answered: exits 0" 0 "$?"
+check "whiptail first question times out" test $((SECONDS - start)) -lt 15
+eq "whiptail timeout means defaults" "admin@example.com" "$(WISHLIST_ENV=/tmp/wt.env wl_settings_get ADMIN_EMAIL)"
+
+# Default address: first IPv4, else bracketed IPv6.
+mkdir -p /tmp/fakehost
+printf '#!/bin/sh\necho "$FAKE_I"\n' >/tmp/fakehost/hostname
+chmod +x /tmp/fakehost/hostname
+eq "container IP prefers IPv4" "10.0.0.7" "$(PATH=/tmp/fakehost:$PATH FAKE_I='2001:db8::5 10.0.0.7' wl_container_ip)"
+eq "IPv6-only container IP is bracketed" "[2001:db8::5]" "$(PATH=/tmp/fakehost:$PATH FAKE_I='2001:db8::5' wl_container_ip)"
+check "bracketed IPv6 BASE_URL is valid" wl_validate BASE_URL "http://[2001:db8::5]:8000"
+
+# Locking: a held lock blocks settings writes.
+before="$(sha256sum "$ENV_FILE")"
+flock /etc/wishlist/.lock sleep 6 &
+locker=$!
+sleep 0.5
+out="$(WL_LOCK_TIMEOUT=1 wishlist-settings --set ADMIN_NAME Locked 2>&1)"
+rc=$?
+check "--set waits for the lock and gives up" test "$rc" -ne 0
+check "lock message" grep -q "maintenance task" <<<"$out"
+eq "locked: file unchanged" "$before" "$(sha256sum "$ENV_FILE")"
+wait "$locker"
+
+# Swap rollback: a failing second move puts the old dir back.
+rm -rf /tmp/swapt /tmp/swapt.prev
+mkdir /tmp/swapt && echo old >/tmp/swapt/marker
+_wl_swap_dirs /tmp/does-not-exist /tmp/swapt 2>/dev/null
+rc=$?
+check "failed swap returns non-zero" test "$rc" -ne 0
+eq "failed swap restores the old dir" "old" "$(cat /tmp/swapt/marker 2>/dev/null)"
+
 # --- 6. Backups ------------------------------------------------------------------
 echo "== backup / restore / prune =="
 systemctl stop wishlist
 sqlite3 /var/lib/wishlist/wishlist.db "CREATE TABLE before_backup (x)"
+setpriv --reuid=wishlist --regid=wishlist --init-groups bash -c 'mkdir -p /var/lib/wishlist/images && echo pic >/var/lib/wishlist/images/a.jpg'
+
 b="$(wl_backup)"
 eq "wl_backup exits 0" 0 "$?"
 check "backup has the database" test -f "$b/wishlist.db"
@@ -238,9 +358,19 @@ check "backup has the settings" test -f "$b/wishlist.env"
 check "backup has the version" test -f "$b/wishlist_version.txt"
 check "backup has images dir" test -d "$b/images"
 eq "backup dir is private" "700" "$(stat -c %a "$b")"
+check "backup has the pictures" test -f "$b/images/a.jpg"
+check "no root-owned files left in the data dir" test -z "$(find /var/lib/wishlist -user root)"
 sqlite3 /var/lib/wishlist/wishlist.db "DROP TABLE before_backup; CREATE TABLE after_backup (x)"
+# The app user swaps images for a symlink to a root-owned dir: restore must
+# replace the link, not write through it.
+mkdir -p /root/link-target
+setpriv --reuid=wishlist --regid=wishlist --init-groups bash -c 'rm -rf /var/lib/wishlist/images && ln -s /root/link-target /var/lib/wishlist/images'
 wl_restore "$b"
 eq "wl_restore exits 0" 0 "$?"
+check "restore replaced the images symlink with a dir" bash -c "[ -d /var/lib/wishlist/images ] && [ ! -L /var/lib/wishlist/images ]"
+eq "restored picture" "pic" "$(cat /var/lib/wishlist/images/a.jpg 2>/dev/null)"
+eq "restored pictures owned by wishlist" "wishlist" "$(stat -c %U /var/lib/wishlist/images/a.jpg 2>/dev/null)"
+check "symlink target untouched" test -z "$(ls -A /root/link-target)"
 eq "restored database content" "before_backup" \
   "$(sqlite3 /var/lib/wishlist/wishlist.db "SELECT name FROM sqlite_master WHERE name LIKE '%_backup'")"
 eq "restored database owned by wishlist" "wishlist" "$(stat -c %U /var/lib/wishlist/wishlist.db)"
@@ -269,6 +399,21 @@ check "failed install exits non-zero" test "$rc" -ne 0
 eq "failed install leaves the live dir alone" "$(cat /tmp/inode.before)" "$(ls -id /opt/wishlist)"
 check "failed install cleans up staging" test ! -e /opt/wishlist.new
 check "bad ref rejected" bash -c ". $LIB; ! wl_install_ref 'bad ref;x' /tmp/x 2>/dev/null"
+
+# --- 7b. Re-run the install on a terminal, pressing Esc at every question -----
+echo "== install re-run with Esc everywhere (a few minutes) =="
+base_before="$(wl_settings_get BASE_URL)"
+secret_before="$(wl_settings_get SECRET_KEY)"
+rm -f /tmp/wt.log
+script -qec "env PATH=/tmp/fakewt:\$PATH TERM=xterm STUB_WT=esc WISHLIST_SOURCE_DIR=$REPO \
+  bash $REPO/proxmox/install/wishlist-install.sh" /dev/null >/tmp/install2.out 2>&1
+eq "re-run with Esc: install exits 0" 0 "$?"
+check "re-run with Esc: whiptail was used" grep -q -- '--inputbox' /tmp/wt.log
+eq "re-run with Esc: healthy" 0 "$(wl_health 60 >/dev/null 2>&1; echo $?)"
+eq "re-run keeps BASE_URL" "$base_before" "$(wl_settings_get BASE_URL)"
+eq "re-run keeps SECRET_KEY" "$secret_before" "$(wl_settings_get SECRET_KEY)"
+check "re-run kept the previous code as .prev" test -x /opt/wishlist.prev/.venv/bin/python
+check "re-run kept the creds file" grep -q '^Admin link: http://' /root/wishlist.creds
 
 # --- 8. wl_latest_ref against a fake GitHub API ------------------------------------
 echo "== wl_latest_ref =="
