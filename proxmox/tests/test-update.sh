@@ -76,6 +76,11 @@ SRC_V2="$(mk_src v2)"
 echo "# update test: v2" >>"$SRC_V2/wishlist/__init__.py"
 echo "# update test: helpers v2" >>"$SRC_V2/proxmox/misc/wishlist-lib.sh"
 echo "# update test: settings v2" >>"$SRC_V2/proxmox/misc/wishlist-settings"
+echo "# update test: unit v2" >>"$SRC_V2/proxmox/misc/wishlist.service"
+# v2 moves the engine pin: an update must carry it into /usr/bin/update.
+V2_PIN="https://raw.githubusercontent.com/community-scripts/core/0000000000000000000000000000000000000002"
+sed -i "s|^WL_CORE_URL_DEFAULT=.*|WL_CORE_URL_DEFAULT=\"$V2_PIN\"|" "$SRC_V2/proxmox/misc/wishlist-lib.sh"
+grep -q "$V2_PIN" "$SRC_V2/proxmox/misc/wishlist-lib.sh" || bad "test setup: could not move the pin in v2"
 SRC_V3="$(mk_src v3)"
 echo "# update test: v3" >>"$SRC_V3/wishlist/__init__.py"
 SRC_V4="$(mk_src v4)"
@@ -107,6 +112,7 @@ grep -q "down_revision = '0002'" "$SRC_START/wishlist/migrations/versions/0099_u
   [[ "$(find "$REPO/wishlist/migrations/versions" -name '00*.py' | sort | tail -n 1)" == */0002_* ]] ||
   bad "test setup: 0002 is no longer the newest migration; update the test migration's down_revision"
 sed -i 's/return "ok"/return "broken"/' "$SRC_START/wishlist/__init__.py"
+echo "# update test: unit broken" >>"$SRC_START/proxmox/misc/wishlist.service"
 grep -q 'return "broken"' "$SRC_START/wishlist/__init__.py" || bad "test setup: could not break /healthz"
 
 # A picture and a row that must survive every failed update.
@@ -138,6 +144,63 @@ eq "GitHub unreachable: code dir unchanged" "$before_inode" "$(inode)"
 eq "GitHub unreachable: no backup" 0 "$(n_backups)"
 eq "GitHub unreachable: service untouched" "$pid" "$(app_pid)"
 
+# --- GitHub API errors: only a 404 from releases/latest falls back to tags ---------
+echo "== GitHub API errors =="
+cat >/tmp/fake-gh.py <<'PY'
+import http.server, json, sys
+ROUTES = {  # path -> (status, headers, body)
+    "/repos/o/rl/commits/main": (403, {"x-ratelimit-remaining": "0"}, {"message": "API rate limit exceeded"}),
+    "/repos/o/rl/releases/latest": (403, {"X-RateLimit-Remaining": "0"}, {"message": "API rate limit exceeded"}),
+    "/repos/o/rl/tags": (200, {}, [{"name": "v0.0.1-must-not-be-used"}]),
+    "/repos/o/r429/releases/latest": (429, {"Retry-After": "60"}, {"message": "slow down"}),
+    "/repos/o/err/releases/latest": (500, {}, {"message": "boom"}),
+    "/repos/o/err/tags": (200, {}, [{"name": "v0.0.2-must-not-be-used"}]),
+    "/repos/o/forbid/releases/latest": (403, {}, {"message": "Forbidden"}),
+    "/repos/o/forbid/tags": (200, {}, [{"name": "v0.0.3-must-not-be-used"}]),
+    "/repos/o/norel/tags": (200, {}, [{"name": "v0.9.1"}, {"name": "v0.9.0"}]),
+}
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        status, headers, body = ROUTES.get(self.path, (404, {}, {"message": "Not Found"}))
+        data = json.dumps(body).encode()
+        self.send_response(status)
+        for k, v in headers.items():
+            self.send_header(k, v)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+    def log_message(self, *a):
+        pass
+http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+PY
+python3 /tmp/fake-gh.py 8768 &
+gh_pid=$!
+sleep 1
+gh() { # repo channel -> "rc|stdout|stderr"
+  local o e rc
+  o="$(WISHLIST_GITHUB_API=http://127.0.0.1:8768 WISHLIST_REPO=$1 wl_latest_ref "$2" 2>/tmp/gh.err)"
+  rc=$?
+  e="$(tr '\n' ' ' </tmp/gh.err)"
+  printf '%s|%s|%s' "$rc" "$o" "${e% }"
+}
+eq "releases: 404 falls back to the newest tag" "0|v0.9.1|" "$(gh o/norel releases)"
+eq "releases: rate limit (403) is reported, no tag fallback" "1||GitHub API rate limit reached, try again later." "$(gh o/rl releases)"
+eq "releases: rate limit (429 Retry-After) is reported" "1||GitHub API rate limit reached, try again later." "$(gh o/r429 releases)"
+eq "main: rate limit is reported" "1||GitHub API rate limit reached, try again later." "$(gh o/rl main)"
+eq "releases: server error fails, no tag fallback" "1||Could not read the latest release of o/err from GitHub." "$(gh o/err releases)"
+eq "releases: plain 403 fails, no tag fallback" "1||Could not read the latest release of o/forbid from GitHub." "$(gh o/forbid releases)"
+pid="$(app_pid)"
+before_inode="$(inode)"
+out="$(WISHLIST_GITHUB_API=http://127.0.0.1:8768 WISHLIST_REPO=o/rl wl_update 2>&1)"
+rc=$?
+check "rate limit: update fails" test "$rc" -ne 0
+check "rate limit: update says so" grep -q "rate limit reached, try again later" <<<"$out"
+check "rate limit: nothing was changed" grep -q "nothing was changed" <<<"$out"
+eq "rate limit: version unchanged" "$start_version" "$(version)"
+eq "rate limit: code dir unchanged" "$before_inode" "$(inode)"
+eq "rate limit: service untouched" "$pid" "$(app_pid)"
+kill "$gh_pid" 2>/dev/null
+
 # --- (b) upgrade -----------------------------------------------------------------
 echo "== upgrade to a new version (a minute) =="
 SHA_V2=2222222222222222222222222222222222222222
@@ -164,6 +227,36 @@ eq "upgrade: version file mode" 644 "$(stat -c %a /opt/wishlist_version.txt)"
 eq "upgrade: refreshed lib mode" "644 root" "$(stat -c '%a %U' "$LIB")"
 eq "upgrade: refreshed wishlist-settings mode" "755 root" "$(stat -c '%a %U' /usr/local/bin/wishlist-settings)"
 check "upgrade: says it updated" grep -q "Updated Wish List to $SHA_V2" <<<"$out"
+check "upgrade: new unit installed" grep -q "update test: unit v2" /etc/systemd/system/wishlist.service
+check "upgrade: old unit kept in the backup" bash -c "[ -f '$b1/wishlist.service' ] && ! grep -q 'update test' '$b1/wishlist.service'"
+check "upgrade: /usr/bin/update uses the new version's engine pin" \
+  grep -qx "export COMMUNITY_SCRIPTS_CORE_URL=\"$V2_PIN\"" /usr/bin/update
+check "upgrade: /usr/bin/update keeps the scripts base" \
+  grep -qx "export COMMUNITY_SCRIPTS_URL=\"$OUR_SCRIPTS\"" /usr/bin/update
+check "upgrade: /usr/bin/update keeps the slug" grep -qx 'export SCRIPT_SLUG="butthe4d-wish-list"' /usr/bin/update
+
+# --- not enough disk space -----------------------------------------------------------
+echo "== not enough disk space =="
+mkdir -p /tmp/fakedf
+printf '%s\n' '#!/bin/sh' \
+  'echo "Filesystem 1024-blocks Used Available Capacity Mounted on"' \
+  'echo "/dev/fake 4000000 3990000 10000 100% /"' >/tmp/fakedf/df
+chmod +x /tmp/fakedf/df
+set_latest 1212121212121212121212121212121212121212
+pid="$(app_pid)"
+before_inode="$(inode)"
+nb="$(n_backups)"
+out="$(PATH=/tmp/fakedf:$PATH WISHLIST_SOURCE_DIR=$SRC_V3 wl_update 2>&1)"
+rc=$?
+check "disk full: update fails" test "$rc" -ne 0
+check "disk full: says why" grep -q "Not enough free disk space for the update: need [0-9]* MB, [0-9]* MB free" <<<"$out"
+check "disk full: nothing was changed" grep -q "nothing was changed" <<<"$out"
+eq "disk full: version unchanged" "$SHA_V2" "$(version)"
+eq "disk full: code dir unchanged" "$before_inode" "$(inode)"
+check "disk full: previous code (.prev) still there" test -d /opt/wishlist.prev
+check "disk full: nothing built" test ! -e /opt/wishlist.new
+eq "disk full: no backup" "$nb" "$(n_backups)"
+eq "disk full: service untouched" "$pid" "$(app_pid)"
 
 # --- (c1) broken version: fails on import (caught while building) -----------------
 echo "== broken version: import error (a minute) =="
@@ -181,6 +274,7 @@ eq "import error: /healthz ok" ok "$(health)"
 eq "import error: service never stopped" "$pid" "$(app_pid)"
 eq "import error: no backup needed" "$nb" "$(n_backups)"
 check "import error: no staging dir left" test ! -e /opt/wishlist.new
+check "the previous update's .prev is dropped when a new update starts" test ! -e /opt/wishlist.prev
 
 # A failing build step that is not the last one (translations cannot be
 # compiled; the app itself would still import) must fail the build.
@@ -217,6 +311,9 @@ eq "unhealthy: /healthz ok again" ok "$(health)"
 eq "unhealthy: backup made before the change" $((nb + 1)) "$(n_backups)"
 check "unhealthy: no leftover dirs" test ! -e /opt/wishlist.new -a ! -e /opt/wishlist.failed
 check "unhealthy: helpers not replaced by the broken version" grep -q "update test: helpers v2" "$LIB"
+check "unhealthy: the broken version's unit is gone" bash -c '! grep -q "update test: unit broken" /etc/systemd/system/wishlist.service'
+check "unhealthy: the previous unit is back" grep -q "update test: unit v2" /etc/systemd/system/wishlist.service
+check "unhealthy: /usr/bin/update not rewritten" grep -qx "export COMMUNITY_SCRIPTS_CORE_URL=\"$V2_PIN\"" /usr/bin/update
 
 # --- incomplete backup aborts the update before anything changes ------------------
 echo "== incomplete backup =="
@@ -255,6 +352,53 @@ check "held lock: says why" grep -q "maintenance task" <<<"$out"
 eq "held lock: version unchanged" "$SHA_V2" "$(version)"
 wait "$locker"
 
+# --- SIGTERM between the swap and the health check -> rollback ----------------------
+echo "== interrupted update (a minute) =="
+# A systemctl wrapper that, once, records who called `start` and stalls.
+mkdir -p /tmp/slowsd
+cat >/tmp/slowsd/systemctl <<'SH'
+#!/usr/bin/env bash
+if [[ "$1" == start && -e /tmp/slow-start ]]; then
+  rm -f /tmp/slow-start
+  echo "$PPID" >/tmp/start-caller
+  sleep 4
+fi
+exec /usr/local/bin/systemctl "$@"
+SH
+chmod +x /tmp/slowsd/systemctl
+rm -f /tmp/start-caller /tmp/sig.rc
+touch /tmp/slow-start
+set_latest 8888888888888888888888888888888888888888
+before_inode="$(inode)"
+before_alembic="$(alembic)"
+nb="$(n_backups)"
+(
+  PATH=/tmp/slowsd:$PATH WISHLIST_SOURCE_DIR=$SRC_START WISHLIST_HEALTH_TIMEOUT=60 wl_update >/tmp/sig.out 2>&1
+  echo $? >/tmp/sig.rc
+) &
+updater=$!
+for _ in $(seq 1 600); do [[ -s /tmp/start-caller ]] && break; sleep 0.5; done
+if [[ -s /tmp/start-caller ]]; then
+  kill -TERM "$(cat /tmp/start-caller)"
+  wait "$updater"
+  eq "interrupted: exits 143" 143 "$(cat /tmp/sig.rc)"
+  check "interrupted: says so" grep -q "Update interrupted; putting the previous version back" /tmp/sig.out
+  check "interrupted: rolled back" grep -q "rolled back to $SHA_V2" /tmp/sig.out
+  eq "interrupted: version restored" "$SHA_V2" "$(version)"
+  eq "interrupted: code dir restored" "$before_inode" "$(inode)"
+  eq "interrupted: database restored" "$before_alembic" "$(alembic)"
+  check "interrupted: unit restored" bash -c '! grep -q "update test: unit broken" /etc/systemd/system/wishlist.service'
+  eq "interrupted: /healthz ok" ok "$(health)"
+  eq "interrupted: backup made" $((nb + 1)) "$(n_backups)"
+  check "interrupted: no leftover dirs" test ! -e /opt/wishlist.new -a ! -e /opt/wishlist.failed
+  check "interrupted: lock released" bash -c ". $LIB; WL_LOCK_TIMEOUT=1 wl_with_lock true"
+else
+  bad "interrupted: the update never reached the start step"
+  tail -n 30 /tmp/sig.out
+  kill "$updater" 2>/dev/null
+  wait "$updater"
+fi
+
 # --- (e) four upgrades keep three backups -----------------------------------------
 echo "== more upgrades: keep the newest 3 backups (two minutes) =="
 SHA_V3=6666666666666666666666666666666666666666
@@ -265,7 +409,7 @@ eq "upgrade 3: exit 0" "$SHA_V3" "$(version)"
 set_latest "$SHA_V4"
 WISHLIST_SOURCE_DIR=$SRC_V4 wl_update >/dev/null 2>&1
 eq "upgrade 4: exit 0" "$SHA_V4" "$(version)"
-eq "four backups made, newest 3 kept" 3 "$(n_backups)"
+eq "five backups made, newest 3 kept" 3 "$(n_backups)"
 newest="$(find "$BK" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)"
 eq "newest backup is the one before the last upgrade" "$SHA_V3" "$(cat "$BK/$newest/wishlist_version.txt")"
 eq "healthy after the upgrades" ok "$(health)"

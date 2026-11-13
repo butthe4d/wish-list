@@ -28,6 +28,7 @@ WL_KEEP_BACKUPS=3
 WL_LIB_FILE="${WL_LIB_FILE:-/usr/local/lib/wishlist/wishlist-lib.sh}"
 WL_SETTINGS_CMD="${WL_SETTINGS_CMD:-/usr/local/bin/wishlist-settings}"
 WL_UPDATE_ENTRYPOINT="${WL_UPDATE_ENTRYPOINT:-/usr/bin/update}"
+WL_UNIT_FILE="${WL_UNIT_FILE:-/etc/systemd/system/wishlist.service}"
 # Defaults for /usr/bin/update when the engine did not pass its bases in. The
 # engine pin must match ct/wishlist.sh.
 WL_SCRIPTS_URL_DEFAULT="https://raw.githubusercontent.com/butthe4d/wish-list/main/proxmox"
@@ -696,26 +697,61 @@ _wl_swap_dirs() {
   fi
 }
 
+# _wl_gh_get URL: GET a GitHub API URL and print the body. Status: 0 for
+# 200, 4 for 404, 3 when the API rate limit is hit (403/429 with
+# x-ratelimit-remaining: 0 or retry-after), 1 for anything else.
+_wl_gh_get() {
+  local url="$1" body hdr code rc=1
+  body="$(mktemp)" && hdr="$(mktemp)" || return 1
+  code="$(curl -sSL --max-time 20 -H 'Accept: application/vnd.github+json' \
+    -D "$hdr" -o "$body" -w '%{http_code}' "$url" 2>/dev/null)" || code=000
+  case "$code" in
+  200) cat "$body" && rc=0 ;;
+  404) rc=4 ;;
+  403 | 429)
+    if grep -qiE '^(x-ratelimit-remaining:[[:space:]]*0[[:space:]]*$|retry-after:)' "$hdr"; then rc=3; fi
+    ;;
+  esac
+  rm -f "$body" "$hdr"
+  return "$rc"
+}
+
+# Message for a failed _wl_gh_get (status $1) about WHAT ($2).
+_wl_gh_fail() {
+  if [[ "$1" == 3 ]]; then
+    wl_err "GitHub API rate limit reached, try again later."
+  else
+    wl_err "Could not read $2 from GitHub."
+  fi
+}
+
 # wl_latest_ref CHANNEL: newest commit sha on main (main), or newest release
-# tag, falling back to the newest tag (releases).
+# tag (releases); a repo without releases (404) falls back to the newest tag.
+# Any other error (rate limit, server error, no network) fails: falling back
+# then could pick an older tag than the latest release.
 wl_latest_ref() {
-  local channel="$1" api="${WISHLIST_GITHUB_API:-https://api.github.com}" repo json ref
+  local channel="$1" api="${WISHLIST_GITHUB_API:-https://api.github.com}" repo json ref rc=0
   repo="$(wl_repo)"
   case "$channel" in
   main)
-    json="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "$api/repos/$repo/commits/main")" || {
-      wl_err "Could not read the latest commit of $repo from GitHub."
+    json="$(_wl_gh_get "$api/repos/$repo/commits/main")" || {
+      _wl_gh_fail $? "the latest commit of $repo"
       return 1
     }
     ref="$(python3 -I -c 'import json, sys; print(json.load(sys.stdin)["sha"])' <<<"$json" 2>/dev/null)"
     ;;
   releases)
-    if json="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "$api/repos/$repo/releases/latest" 2>/dev/null)"; then
+    json="$(_wl_gh_get "$api/repos/$repo/releases/latest")" || rc=$?
+    if [[ $rc == 0 ]]; then
       ref="$(python3 -I -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])' <<<"$json" 2>/dev/null)"
-    elif json="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "$api/repos/$repo/tags")"; then
+    elif [[ $rc == 4 ]]; then
+      json="$(_wl_gh_get "$api/repos/$repo/tags")" || {
+        _wl_gh_fail $? "the tags of $repo"
+        return 1
+      }
       ref="$(python3 -I -c 'import json, sys; print(json.load(sys.stdin)[0]["name"])' <<<"$json" 2>/dev/null)"
     else
-      wl_err "Could not read releases or tags of $repo from GitHub."
+      _wl_gh_fail "$rc" "the latest release of $repo"
       return 1
     fi
     ;;
@@ -742,7 +778,8 @@ wl_db_path() {
   fi
 }
 
-# wl_backup: print the new backup directory (root-only). The database copy
+# wl_backup: print the new backup directory (root-only). It also keeps the
+# systemd unit (wishlist.service), which an update may replace. The database copy
 # is made and read by the app user (sqlite creates WAL files, which must stay
 # the app user's; and root must not read a path the app user controls);
 # the same goes for the pictures.
@@ -784,7 +821,8 @@ _wl_backup() {
     mkdir "$dir/images"
   fi
   if ! { [[ ! -f "$WISHLIST_ENV" ]] || cp -p "$WISHLIST_ENV" "$dir/wishlist.env"; } ||
-    ! { [[ ! -f "$WL_VERSION_FILE" ]] || cp -p "$WL_VERSION_FILE" "$dir/wishlist_version.txt"; }; then
+    ! { [[ ! -f "$WL_VERSION_FILE" ]] || cp -p "$WL_VERSION_FILE" "$dir/wishlist_version.txt"; } ||
+    ! { [[ ! -f "$WL_UNIT_FILE" ]] || cp -p "$WL_UNIT_FILE" "$dir/wishlist.service"; }; then
     wl_err "Backing up the settings failed."
     rm -rf "$dir"
     return 1
@@ -846,16 +884,22 @@ wl_prune_backups() {
 # ---------------------------------------------------------------------------
 
 # wl_update: update to the newest version on the configured channel. Status 0
-# when already up to date or updated. Non-zero when the check or the build
-# failed (nothing was changed), or when the new version failed and the
-# previous one was put back (code, database, pictures, settings, version).
-# Holds the maintenance lock throughout and is shielded from console hangups.
+# when already up to date or updated. Non-zero when the check, the disk-space
+# check or the build failed (nothing was changed), or when the new version
+# failed or the update was interrupted and the previous one was put back
+# (code, unit, database, pictures, settings, version). Holds the maintenance
+# lock throughout and is shielded from console hangups.
 #
-# Order: build the new version next to the live one while the app runs ->
-# stop -> backup (a consistent copy of the stopped database) -> swap the code
-# -> migrate (bootstrap) -> start -> health check within
-# WISHLIST_HEALTH_TIMEOUT (30 s) -> on any failure roll back.
+# Order: check free space -> drop the previous update's WL_APP_DIR.prev ->
+# build the new version next to the live one while the app runs -> stop ->
+# backup (a consistent copy of the stopped database) -> swap the code ->
+# record the version -> install the new unit -> migrate (bootstrap) -> start
+# -> health check within WISHLIST_HEALTH_TIMEOUT (30 s) -> on any failure,
+# or SIGINT/SIGTERM after the stop, roll back.
 wl_update() { wl_shielded wl_with_lock _wl_update; }
+
+# Update state, global so the trap handler (_wl_interrupted) can read it.
+_WL_U_PHASE="" _WL_U_BACKUP="" _WL_U_PREVIOUS=""
 
 _wl_update() {
   local channel current latest backup err=""
@@ -876,37 +920,147 @@ _wl_update() {
   fi
 
   echo "Updating Wish List from $current to $latest (channel $channel)."
+  _wl_check_space || return 1
+  # The previous update's rollback target is not needed any more, and its
+  # space is needed for the build.
+  rm -rf "$WL_APP_DIR.prev"
   echo "Building the new version; the app keeps running meanwhile..."
   if ! wl_build_ref "$latest" "$WL_APP_DIR"; then
     wl_err "Update aborted; nothing was changed."
     return 1
   fi
 
+  # From here on an interruption must not leave the app stopped or half
+  # updated: the trap puts everything back (once) and exits non-zero.
+  _WL_U_PHASE=stopped _WL_U_BACKUP="" _WL_U_PREVIOUS="$current"
+  trap '_wl_interrupted 130' INT
+  trap '_wl_interrupted 143' TERM
   echo "Stopping Wish List and backing up the database, pictures and settings..."
   if ! systemctl stop "$WL_SERVICE" || ! backup="$(_wl_backup)"; then
+    _wl_untrap
     rm -rf "$WL_APP_DIR.new"
     _wl_start_unchanged
     wl_err "Backup failed; update aborted, nothing was changed."
     return 1
   fi
+  _WL_U_BACKUP="$backup"
   wl_prune_backups
+  _WL_U_PHASE=swapping
   if ! _wl_swap_dirs "$WL_APP_DIR.new" "$WL_APP_DIR"; then
+    _wl_untrap
     _wl_start_unchanged
     wl_err "Update aborted; nothing was changed."
     return 1
   fi
-  printf '%s\n' "$latest" >"$WL_VERSION_FILE"
+  _WL_U_PHASE=swapped
+  if ! printf '%s\n' "$latest" >"$WL_VERSION_FILE"; then
+    _wl_untrap
+    wl_err "Could not write $WL_VERSION_FILE."
+    _wl_rollback "$backup" "$current" 1
+    return 1
+  fi
+  if ! _wl_install_unit; then
+    _wl_untrap
+    _wl_rollback "$backup" "$current" 1
+    return 1
+  fi
 
   echo "Migrating the database and starting the new version..."
   # Only stderr is kept: stdout could carry a one-time admin link.
   if err="$(wl_run_as_app "$WL_APP_DIR/.venv/bin/python" -m wishlist.bootstrap 2>&1 >/dev/null)" &&
     systemctl start "$WL_SERVICE" && wl_health; then
+    _wl_untrap
     _wl_refresh_helpers
+    _wl_refresh_entrypoint
     echo "Updated Wish List to $latest. Backup of the previous version: $backup"
     return 0
   fi
+  _wl_untrap
   [[ -n "$err" ]] && wl_err "$err"
-  _wl_rollback "$backup" "$current"
+  wl_err "The new version did not start. Last log lines:"
+  wl_err "$(journalctl -u "$WL_SERVICE" -n 20 --no-pager 2>&1)"
+  _wl_rollback "$backup" "$current" 1
+}
+
+_wl_untrap() {
+  trap - INT TERM
+  _WL_U_PHASE=""
+}
+
+# Trap handler (SIGINT/SIGTERM after the stop): undo what was done so far,
+# once, then exit with 128+signal.
+_wl_interrupted() {
+  local code="$1" phase="$_WL_U_PHASE"
+  trap '' INT TERM
+  _WL_U_PHASE=""
+  [[ -n "$phase" ]] || exit "$code"
+  wl_err "Update interrupted; putting the previous version back..."
+  if [[ -n "$_WL_U_BACKUP" ]]; then
+    # "swapping": the swap either happened (the new code is live, the old one
+    # in .prev) or _wl_swap_dirs put the old dir back; .new tells them apart.
+    if [[ "$phase" == swapped || ("$phase" == swapping && ! -e "$WL_APP_DIR.new") ]]; then
+      _wl_rollback "$_WL_U_BACKUP" "$_WL_U_PREVIOUS" 1
+    else
+      _wl_rollback "$_WL_U_BACKUP" "$_WL_U_PREVIOUS" 0
+    fi
+  else
+    rm -rf "$WL_APP_DIR.new"
+    _wl_start_unchanged
+    wl_err "Update interrupted before anything was changed."
+  fi
+  exit "$code"
+}
+
+# _wl_check_space: the update needs room for the new code (built next to the
+# old) and a backup of the database and pictures: 2x the code + database +
+# pictures + 200 MB, on the code's filesystem (the previous update's .prev,
+# which is removed first, counts as free). A separate backup filesystem must
+# hold the database + pictures + 100 MB.
+_wl_check_space() {
+  local code prev data need avail fs bk_fs bk_avail bk_dir
+  code="$(_wl_kb "$WL_APP_DIR")"
+  prev="$(_wl_kb "$WL_APP_DIR.prev")"
+  data=$(($(_wl_kb "$(wl_db_path)") + $(_wl_kb "$WL_DATA_DIR/images")))
+  need=$((2 * code + data + 200 * 1024))
+  read -r fs avail < <(df -Pk "$(dirname "$WL_APP_DIR")" 2>/dev/null | awk 'NR == 2 {print $1, $4}')
+  if [[ ! "${avail:-}" =~ ^[0-9]+$ ]]; then
+    wl_err "Could not determine the free disk space; update aborted, nothing was changed."
+    return 1
+  fi
+  if ((avail + prev < need)); then
+    wl_err "Not enough free disk space for the update: need $((need / 1024)) MB, $(((avail + prev) / 1024)) MB free. Update aborted, nothing was changed. Grow the container disk (e.g. pct resize <ctid> rootfs +2G) and try again."
+    return 1
+  fi
+  bk_dir="$WL_BACKUP_ROOT"
+  [[ -d "$bk_dir" ]] || bk_dir="$(dirname "$WL_BACKUP_ROOT")"
+  read -r bk_fs bk_avail < <(df -Pk "$bk_dir" 2>/dev/null | awk 'NR == 2 {print $1, $4}')
+  if [[ -n "${bk_fs:-}" && "$bk_fs" != "$fs" && "${bk_avail:-0}" =~ ^[0-9]+$ ]] &&
+    ((bk_avail < data + 100 * 1024)); then
+    wl_err "Not enough free disk space for the backup in $WL_BACKUP_ROOT: need $(((data + 100 * 1024) / 1024)) MB, $((bk_avail / 1024)) MB free. Update aborted, nothing was changed."
+    return 1
+  fi
+}
+
+# Size of a file or directory in KiB (0 if missing).
+_wl_kb() {
+  local kb
+  kb="$(du -sk "$1" 2>/dev/null | awk '{print $1}')"
+  printf '%s' "${kb:-0}"
+}
+
+# Install the unit shipped with the (now live) new version, if it has one,
+# and reload systemd. The old unit is in the backup (wishlist.service).
+_wl_install_unit() {
+  local src="$WL_APP_DIR/proxmox/misc/wishlist.service" tmp
+  if [[ -f "$src" ]] && ! cmp -s "$src" "$WL_UNIT_FILE"; then
+    tmp="$(mktemp "$(dirname "$WL_UNIT_FILE")/.wishlist.service.XXXXXX")" &&
+      cat "$src" >"$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$WL_UNIT_FILE" || {
+      rm -f "${tmp:-}"
+      wl_err "Could not install the new $WL_UNIT_FILE."
+      return 1
+    }
+  fi
+  systemctl daemon-reload || { wl_err "systemctl daemon-reload failed."; return 1; }
 }
 
 # Start the untouched installation again after an aborted update.
@@ -916,27 +1070,34 @@ _wl_start_unchanged() {
   fi
 }
 
-# _wl_rollback BACKUP_DIR PREVIOUS_VERSION: put the previous code dir
-# (WL_APP_DIR.prev) and the backup back, start, health-check. Always returns 1
-# (the update failed either way); says whether the rollback worked.
+# _wl_rollback BACKUP_DIR PREVIOUS_VERSION SWAPPED: if SWAPPED is 1, put the
+# previous code dir (WL_APP_DIR.prev) back, else just drop WL_APP_DIR.new;
+# then restore the backup (database, pictures, settings, version, unit),
+# start, health-check. Always returns 1 (the update failed either way); says
+# whether the rollback worked.
 _wl_rollback() {
-  local backup="$1" previous="$2" ok=1 log
-  log="$(journalctl -u "$WL_SERVICE" -n 20 --no-pager 2>&1)"
-  wl_err "The new version did not start. Last log lines:"
-  wl_err "$log"
+  local backup="$1" previous="$2" swapped="${3:-1}" ok=1
   wl_err "Rolling back to $previous..."
   systemctl stop "$WL_SERVICE" || true
-  if [[ -d "$WL_APP_DIR.prev" ]] && rm -rf "$WL_APP_DIR.failed" && mv -T "$WL_APP_DIR" "$WL_APP_DIR.failed"; then
-    if mv -T "$WL_APP_DIR.prev" "$WL_APP_DIR"; then
-      rm -rf "$WL_APP_DIR.failed"
+  if [[ "$swapped" == 1 ]]; then
+    if [[ -d "$WL_APP_DIR.prev" ]] && rm -rf "$WL_APP_DIR.failed" && mv -T "$WL_APP_DIR" "$WL_APP_DIR.failed"; then
+      if mv -T "$WL_APP_DIR.prev" "$WL_APP_DIR"; then
+        rm -rf "$WL_APP_DIR.failed"
+      else
+        mv -T "$WL_APP_DIR.failed" "$WL_APP_DIR" || true
+        ok=0
+      fi
     else
-      mv -T "$WL_APP_DIR.failed" "$WL_APP_DIR" || true
       ok=0
     fi
   else
-    ok=0
+    rm -rf "$WL_APP_DIR.new"
   fi
   _wl_restore "$backup" || ok=0
+  if [[ -f "$backup/wishlist.service" ]] && ! cmp -s "$backup/wishlist.service" "$WL_UNIT_FILE"; then
+    cp "$backup/wishlist.service" "$WL_UNIT_FILE" && chmod 644 "$WL_UNIT_FILE" || ok=0
+  fi
+  systemctl daemon-reload || ok=0
   if ! { systemctl start "$WL_SERVICE" && wl_health; }; then ok=0; fi
   if [[ $ok == 1 ]]; then
     wl_err "Update failed; rolled back to $previous (code, database, pictures and settings). Backup kept in $backup."
@@ -944,6 +1105,24 @@ _wl_rollback() {
     wl_err "Update failed and the rollback did not complete. Backup of $previous: $backup. Check: journalctl -u $WL_SERVICE"
   fi
   return 1
+}
+
+# After a good update: rewrite /usr/bin/update with the NEW lib (just
+# refreshed), so a moved engine pin (WL_CORE_URL_DEFAULT) reaches installed
+# containers. The scripts and website bases already in the entrypoint stay.
+_wl_refresh_entrypoint() {
+  local base="" website=""
+  [[ -f "$WL_LIB_FILE" ]] || return 0
+  if [[ -f "$WL_UPDATE_ENTRYPOINT" ]]; then
+    base="$(sed -n 's/^export COMMUNITY_SCRIPTS_URL="\(.*\)"$/\1/p' "$WL_UPDATE_ENTRYPOINT" | head -n 1)"
+    website="$(sed -n 's/^export COMMUNITY_SCRIPTS_WEBSITE_URL="\(.*\)"$/\1/p' "$WL_UPDATE_ENTRYPOINT" | head -n 1)"
+  fi
+  # shellcheck disable=SC2016
+  env -u COMMUNITY_SCRIPTS_CORE_URL \
+    COMMUNITY_SCRIPTS_URL="${base:-$WL_SCRIPTS_URL_DEFAULT}" \
+    COMMUNITY_SCRIPTS_WEBSITE_URL="${website:-https://community-scripts.org}" \
+    bash -c '. "$1" && wl_write_update_entrypoint "$2"' _ "$WL_LIB_FILE" "$WL_UPDATE_ENTRYPOINT" ||
+    wl_err "Warning: could not refresh $WL_UPDATE_ENTRYPOINT."
 }
 
 # After a good update: install the helper scripts shipped with the new
