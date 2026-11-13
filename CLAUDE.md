@@ -21,6 +21,12 @@ Self-hosted Flask household wishlist app (Apache-2.0). Python 3.12+, SQLAlchemy 
 - Designs differ only by stylesheet: one markup, selected via `data-design` on `<html>`; add a design by adding CSS, not templates. The theme (`classic`/`christmas`/`birthday`) is set per list; `data-theme` goes on the `.page` wrapper in `base.html` (not only `<html>`), so htmx-swapped content keeps the right theme.
 - `base.html` has the `htmx-config` meta with `responseHandling` so 4xx/5xx responses (validation errors) are swapped in; 204 does not swap.
 
+## Proxmox installer (`proxmox/`)
+
+- Layout: `ct/wishlist.sh` (host side, pinned community-scripts engine), `install/wishlist-install.sh` (in the container), `misc/wishlist-lib.sh` (all logic: settings, prompts, update, backup, rollback), `misc/wishlist-settings`, `misc/wishlist.service`, `tests/`.
+- Lib conventions: never `eval`/`source` the settings file (read with `wl_settings_get`, write with `wl_settings_set`); settings changes and updates run under `wl_with_lock`; prompts never abort (defaults on cancel/timeout); no secrets in logs or scripts.
+- Checks: `proxmox/tests/run-container-tests.sh` (Docker, no Proxmox) and `shellcheck -x -S warning` (CI). Engine pin: see the README.
+
 ## Invariants (do not break)
 
 - A list owner never sees reservation state of their own items, in any member or share view. In admin, every member's reservations (and orphan warnings) appear only on that member's page loaded with `?reveal=1` from the "Show reservations" button; the admin home page shows only a neutral "Needs attention" marker (never for the viewer's own items), and orphan emails name only the member.

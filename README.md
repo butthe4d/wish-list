@@ -8,7 +8,7 @@ It runs as one small Docker container with an SQLite database, works well on pho
 | :---: | :---: | :---: | :---: |
 | <img src="docs/screenshots/guest-grid.png" width="190" alt="Shared Christmas list as a grid of gift pictures, one reserved by the viewer and one reserved by someone else"> | <img src="docs/screenshots/guest-detail.png" width="190" alt="Gift details with a name field and an I'll get it button"> | <img src="docs/screenshots/item-form.png" width="190" alt="New item form with three pictures found on the shop page and a popup offering the shop's product name"> | <img src="docs/screenshots/member-home.png" width="190" alt="Member home page with lists and gift tiles"> |
 
-**Contents:** [Features](#features) · [Try it in 5 minutes](#try-it-in-5-minutes) · [How it works](#how-it-works) · [Install for real](#install-for-real) · [Configuration](#configuration) · [Pictures](#pictures-and-fetch-protections) · [Exposing the app](#exposing-the-app) · [Privacy](#privacy-notes) · [Backup](#backup) · [Development](#development)
+**Contents:** [Features](#features) · [Try it in 5 minutes](#try-it-in-5-minutes) · [How it works](#how-it-works) · [Install for real](#install-for-real) · [Proxmox](#proxmox-community-script-style) · [Configuration](#configuration) · [Pictures](#pictures-and-fetch-protections) · [Exposing the app](#exposing-the-app) · [Privacy](#privacy-notes) · [Backup](#backup) · [Development](#development)
 
 ## Features
 
@@ -89,6 +89,77 @@ The compose file uses the image built from this repository and published to `ghc
 The database lives in `./data/wishlist.db` and item pictures in `./data/images/`. Database upgrades run automatically at every start. The container starts as root only to make `/data` writable, then runs the app as uid 1000. With a `user:` override it runs as that user, and `./data` must already be writable by it.
 
 **Upgrading:** back up `data/` first (see [Backup](#backup)), then `docker compose pull && docker compose up -d`. Going back to an older version after an upgrade is not supported.
+
+## Proxmox (community-script style)
+
+On a Proxmox VE host, one command creates an LXC container and installs Wish List in it. Run it in the Proxmox VE shell (as root):
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/butthe4d/wish-list/main/proxmox/ct/wishlist.sh)"
+```
+
+The script uses the [community-scripts](https://github.com/community-scripts/core) engine (pinned to a fixed commit) for the usual dialogs and container creation. This script is not part of the official community-scripts collection. It creates a Debian 13 container with 2 vCPU, 1 GB RAM and a 4 GB disk, unprivileged. Choose "Advanced" in the first dialog to change these, the storage, network and so on. The app runs as a systemd service (`wishlist`) on port 8000, with SQLite as the database.
+
+**What it asks.** Near the end of the install: "Configure Wish List now?" (default: no, it waits 60 seconds). If you say yes, it asks for the address people will use (`BASE_URL`), the first admin's name and email, the default language, optionally an SMTP server, optionally gsmservice.pl SMS, and extra `FETCH_DENY_CIDRS`. If you say no, don't answer within 60 seconds, or there is no terminal, it uses defaults: `BASE_URL=http://<container-IP>:8000`, admin `Admin` / `admin@example.com`, language `en`, no email or SMS. You can change everything later. `SECRET_KEY` is always generated.
+
+**Your admin link** is saved in the container in `/root/wishlist.creds` (readable by root only). Read it from the Proxmox host, with the container's ID (`CTID`):
+
+```sh
+pct exec <CTID> -- cat /root/wishlist.creds
+```
+
+or run `cat /root/wishlist.creds` inside the container. Open the link in your browser to sign in as the first admin.
+
+### Changing settings
+
+Inside the container, run `wishlist-settings` for a menu of all settings. Or script it:
+
+```sh
+wishlist-settings --get BASE_URL
+wishlist-settings --set BASE_URL https://wishes.example.com
+read -rs p; printf '%s' "$p" | wishlist-settings --set SMTP_PASSWORD -    # secrets from stdin
+```
+
+Every setting from [Configuration](#configuration) can be changed at any time, plus `WISHLIST_CHANNEL` (see below). Values are validated, then the app restarts. If it does not start with the new values, the previous settings are put back and the error is shown. Member details, including the admin's own name and email, live on the app's Admin page. `ADMIN_NAME` and `ADMIN_EMAIL` only seed the first admin on first start.
+
+### Updating
+
+Inside the container, run:
+
+```sh
+update
+```
+
+Which version you get depends on the channel (`wishlist-settings --set WISHLIST_CHANNEL releases`): `main` (default) follows the newest commit on the main branch, `releases` the newest release (the newest tag if there are no releases). The update says "already up to date" if there is nothing new. Otherwise it:
+
+1. checks free disk space (it stops before changing anything if short; grow the disk with `pct resize <CTID> rootfs +2G`),
+2. builds the new version next to the running one,
+3. stops the app and backs up the database, pictures, settings and version,
+4. switches the code, runs the database migrations and starts the app,
+5. checks that `/healthz` answers within 30 seconds. If anything fails (or you interrupt it), it restores the previous code, database, pictures and settings automatically and exits with an error.
+
+Backups are in `/var/lib/wishlist-backups/` (root only); the newest three are kept. If GitHub's API rate limit is hit, the update says so and you try again later. Updates run code from this repository's main branch (or latest release) as root in the container, so only use them if you trust this repository.
+
+### Where things are
+
+| What | Where (in the container) |
+| --- | --- |
+| Application code | `/opt/wishlist` (virtualenv in `/opt/wishlist/.venv`) |
+| Database and pictures | `/var/lib/wishlist` |
+| Settings | `/etc/wishlist/wishlist.env` (use `wishlist-settings`) |
+| Admin link | `/root/wishlist.creds` |
+| Backups | `/var/lib/wishlist-backups/` |
+| Logs | `journalctl -u wishlist` |
+
+### For maintainers
+
+The engine is pinned: to move it, change the commit in `COMMUNITY_SCRIPTS_CORE_URL` in `proxmox/ct/wishlist.sh` and `WL_CORE_URL_DEFAULT` in `proxmox/misc/wishlist-lib.sh`, then run the tests. They need Docker and network access; no Proxmox is needed:
+
+```sh
+proxmox/tests/run-container-tests.sh
+```
+
+CI runs `shellcheck -x -S warning` on all scripts in `proxmox/`.
 
 ## Configuration
 

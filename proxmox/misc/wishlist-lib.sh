@@ -702,7 +702,11 @@ _wl_swap_dirs() {
 # x-ratelimit-remaining: 0 or retry-after), 1 for anything else.
 _wl_gh_get() {
   local url="$1" body hdr code rc=1
-  body="$(mktemp)" && hdr="$(mktemp)" || return 1
+  body="$(mktemp)" || return 1
+  hdr="$(mktemp)" || {
+    rm -f "$body"
+    return 1
+  }
   code="$(curl -sSL --max-time 20 -H 'Accept: application/vnd.github+json' \
     -D "$hdr" -o "$body" -w '%{http_code}' "$url" 2>/dev/null)" || code=000
   case "$code" in
@@ -1127,7 +1131,7 @@ _wl_refresh_entrypoint() {
 
 # After a good update: install the helper scripts shipped with the new
 # version (if it has them), so fixes to the lib and wishlist-settings arrive
-# with updates. The unit file is not replaced.
+# with updates. (The unit file is installed separately, earlier in the update.)
 _wl_refresh_helpers() {
   local src="$WL_APP_DIR/proxmox/misc" entry name dest mode tmp
   for entry in "wishlist-lib.sh:$WL_LIB_FILE:644" "wishlist-settings:$WL_SETTINGS_CMD:755"; do
