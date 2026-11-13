@@ -97,6 +97,10 @@ msg_ok "Started Wish List"
 
 motd_ssh
 customize
+# customize() wrote /usr/bin/update with the slug "wishlist", which in the
+# community-scripts catalogue is a different app: its disabled/removed state
+# or advisories would block our updates. Same entrypoint, our own slug.
+wl_write_update_entrypoint || msg_warn "Could not write /usr/bin/update; run updates with: bash -c \"\$(curl -fsSL ${WISHLIST_SCRIPTS_URL}/ct/wishlist.sh)\""
 cleanup_lxc
 
 echo -e "${INFO:-}${YW:-} Wish List is running on $(wl_settings_get BASE_URL)${CL:-}"

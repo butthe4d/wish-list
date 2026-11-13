@@ -25,6 +25,18 @@ WL_SERVICE="${WL_SERVICE:-wishlist}"
 WL_PORT="${WL_PORT:-8000}"
 WL_DEFAULT_REPO="butthe4d/wish-list"
 WL_KEEP_BACKUPS=3
+WL_LIB_FILE="${WL_LIB_FILE:-/usr/local/lib/wishlist/wishlist-lib.sh}"
+WL_SETTINGS_CMD="${WL_SETTINGS_CMD:-/usr/local/bin/wishlist-settings}"
+WL_UPDATE_ENTRYPOINT="${WL_UPDATE_ENTRYPOINT:-/usr/bin/update}"
+# Defaults for /usr/bin/update when the engine did not pass its bases in. The
+# engine pin must match ct/wishlist.sh.
+WL_SCRIPTS_URL_DEFAULT="https://raw.githubusercontent.com/butthe4d/wish-list/main/proxmox"
+WL_CORE_URL_DEFAULT="https://raw.githubusercontent.com/community-scripts/core/665635b6aff5cf1486400d47e6c5aa38f9ba333d"
+# Our slug for the community-scripts website/database lookups. NOT "wishlist":
+# that slug belongs to a different app in their catalogue (cmintey/wishlist),
+# whose disabled/removed state or breaking-change advisories would otherwise
+# block or confuse our installs and updates. Unknown slugs update normally.
+WL_SCRIPT_SLUG="butthe4d-wish-list"
 
 # Every key the settings file may hold, in file order.
 WL_KEYS=(
@@ -159,9 +171,14 @@ wl_with_lock() {
     wl_err "Refusing to use lock directory $dir: it must be a root-owned 0700 directory."
     return 1
   fi
+  local caller_umask
+  caller_umask="$(umask)"
   (
+    # 077 only for creating the lock file: CMD runs with the caller's umask
+    # (a venv built under 077 would be unreadable for the app user).
     umask 077
     exec 9>>"$lock" || exit 1
+    umask "$caller_umask"
     if [[ -L "$lock" || ! -O "$lock" || "$(stat -c '%a' "$lock")" != 600 ]]; then
       wl_err "Refusing to use lock file $lock: it must be a regular file owned by $(id -un) with mode 600."
       exit 1
@@ -593,14 +610,22 @@ wl_repo() {
   printf '%s' "${r:-$WL_DEFAULT_REPO}"
 }
 
-# wl_install_ref REF TARGET_DIR: fetch REF (commit sha or tag) from GitHub, or
-# copy $WISHLIST_SOURCE_DIR (tests; REF is then only recorded), build a fresh
-# venv with the app and compiled translations in TARGET_DIR.new, then swap it
-# in; the previous TARGET_DIR is kept as TARGET_DIR.prev. Prints nothing on
+# wl_install_ref REF TARGET_DIR: wl_build_ref, then swap TARGET_DIR.new in;
+# the previous TARGET_DIR is kept as TARGET_DIR.prev. Prints nothing on
 # success; on failure prints the build log tail and leaves TARGET_DIR alone.
 # Run the app from the moved venv with `.venv/bin/python -m ...`: console
 # scripts in .venv/bin keep the .new path in their shebang.
 wl_install_ref() {
+  wl_build_ref "$@" || return 1
+  local target="${2%/}"
+  wl_with_lock _wl_swap_dirs "$target.new" "$target"
+}
+
+# wl_build_ref REF TARGET_DIR: fetch REF (commit sha or tag) from GitHub, or
+# copy $WISHLIST_SOURCE_DIR (tests; REF is then only recorded), and build a
+# fresh venv with the app and compiled translations in TARGET_DIR.new. The
+# live TARGET_DIR is not touched, so this can run while the app is up.
+wl_build_ref() {
   local ref="$1" target="${2%/}" stage log repo rc=0
   if [[ ! "$ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ || "$ref" == *..* ]]; then
     wl_err "Invalid ref: $ref"
@@ -610,7 +635,9 @@ wl_install_ref() {
   stage="$target.new"
   rm -rf "$stage" && mkdir -p "$stage" || return 1
   log="$(mktemp)" || return 1
-  {
+  # pipefail: a download cut short must fail even if tar is happy with it.
+  (
+    set -o pipefail
     if [[ -n "${WISHLIST_SOURCE_DIR:-}" ]]; then
       tar -C "$WISHLIST_SOURCE_DIR" --exclude=./.git --exclude=./.venv --exclude='*.egg-info' \
         --exclude=__pycache__ --exclude=./.superpowers --exclude='*.db' --exclude='*.mo' -cf - . |
@@ -620,20 +647,21 @@ wl_install_ref() {
       curl -fsSL --retry 3 "https://github.com/$repo/archive/$ref.tar.gz" |
         tar -xz --strip-components=1 -C "$stage"
     fi
-  } >>"$log" 2>&1 || rc=1
+  ) >>"$log" 2>&1 || rc=1
   if [[ $rc == 0 && ! -f "$stage/pyproject.toml" ]]; then
     echo "No pyproject.toml in the downloaded source." >>"$log"
     rc=1
   fi
   if [[ $rc == 0 ]]; then
+    # Chained with &&: `set -e` would be ignored here (this runs on the left
+    # of ||), so a failed step would not stop the build.
     (
-      set -e
       export PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_INPUT=1
-      python3 -m venv "$stage/.venv"
-      "$stage/.venv/bin/python" -m pip install -q babel
-      "$stage/.venv/bin/python" -m babel.messages.frontend compile -d "$stage/wishlist/translations"
-      "$stage/.venv/bin/python" -m pip install -q "$stage"
-      "$stage/.venv/bin/python" -c "import wishlist"
+      python3 -m venv "$stage/.venv" &&
+        "$stage/.venv/bin/python" -m pip install -q babel &&
+        "$stage/.venv/bin/python" -m babel.messages.frontend compile -d "$stage/wishlist/translations" &&
+        "$stage/.venv/bin/python" -m pip install -q "$stage" &&
+        "$stage/.venv/bin/python" -c "import wishlist"
     ) >>"$log" 2>&1 || rc=1
   fi
   if [[ $rc != 0 ]]; then
@@ -647,7 +675,6 @@ wl_install_ref() {
     rm -rf "$stage"
     return 1
   fi
-  wl_with_lock _wl_swap_dirs "$stage" "$target"
 }
 
 # Move TARGET to TARGET.prev and STAGE to TARGET; on failure put TARGET back.
@@ -742,8 +769,13 @@ _wl_backup() {
     # Archived by the app user (it can only read what it may read, links stay
     # links), unpacked by root into the root-only backup dir. tar does not
     # write through links from the archive (placeholders, no ../ names).
-    if ! wl_as_app_user tar -C "$WL_DATA_DIR" -cf - images |
-      tar -C "$dir" -xf - --no-same-owner --no-same-permissions --no-overwrite-dir; then
+    # pipefail: a picture the app user cannot read fails its tar while the
+    # unpacking side happily stores a partial copy; that backup is no backup.
+    if ! (
+      set -o pipefail
+      wl_as_app_user tar -C "$WL_DATA_DIR" -cf - images |
+        tar -C "$dir" -xf - --no-same-owner --no-same-permissions --no-overwrite-dir
+    ); then
       wl_err "Backing up the pictures failed."
       rm -rf "$dir"
       return 1
@@ -751,8 +783,12 @@ _wl_backup() {
   else
     mkdir "$dir/images"
   fi
-  if [[ -f "$WISHLIST_ENV" ]]; then cp -p "$WISHLIST_ENV" "$dir/wishlist.env" || return 1; fi
-  if [[ -f "$WL_VERSION_FILE" ]]; then cp -p "$WL_VERSION_FILE" "$dir/wishlist_version.txt" || return 1; fi
+  if ! { [[ ! -f "$WISHLIST_ENV" ]] || cp -p "$WISHLIST_ENV" "$dir/wishlist.env"; } ||
+    ! { [[ ! -f "$WL_VERSION_FILE" ]] || cp -p "$WL_VERSION_FILE" "$dir/wishlist_version.txt"; }; then
+    wl_err "Backing up the settings failed."
+    rm -rf "$dir"
+    return 1
+  fi
   printf '%s\n' "$dir"
 }
 
@@ -776,13 +812,20 @@ _wl_restore() {
       { wl_err "Restoring the database failed."; return 1; }
   fi
   if [[ -d "$dir/images" ]]; then
+    # Unpack fully first (both ends of the pipe must succeed), then swap.
     # shellcheck disable=SC2016
-    tar -C "$dir" -cf - images | wl_as_app_user bash -c 'set -e; cd "$1"
-      rm -rf .images.restore .images.old; mkdir .images.restore
-      tar -C .images.restore --strip-components=1 -xf -
-      if [ -e images ] || [ -L images ]; then mv -T images .images.old; fi
-      mv -T .images.restore images; rm -rf .images.old' _ "$WL_DATA_DIR" ||
-      { wl_err "Restoring the pictures failed."; return 1; }
+    if ! (
+      set -o pipefail
+      tar -C "$dir" -cf - images | wl_as_app_user bash -c 'set -e; cd "$1"
+        rm -rf .images.restore .images.old; mkdir .images.restore
+        tar -C .images.restore --strip-components=1 -xf -' _ "$WL_DATA_DIR"
+    ) || ! wl_as_app_user bash -c 'set -e; cd "$1"
+        if [ -e images ] || [ -L images ]; then mv -T images .images.old; fi
+        mv -T .images.restore images; rm -rf .images.old' _ "$WL_DATA_DIR"; then
+      wl_as_app_user rm -rf "$WL_DATA_DIR/.images.restore"
+      wl_err "Restoring the pictures failed."
+      return 1
+    fi
   fi
 }
 
@@ -795,4 +838,175 @@ wl_prune_backups() {
   for ((i = 0; i < n; i++)); do
     rm -rf "${WL_BACKUP_ROOT:?}/${all[i]}"
   done
+}
+
+# ---------------------------------------------------------------------------
+# Update (`update` in the container runs ct/wishlist.sh, whose update_script
+# calls wl_update)
+# ---------------------------------------------------------------------------
+
+# wl_update: update to the newest version on the configured channel. Status 0
+# when already up to date or updated. Non-zero when the check or the build
+# failed (nothing was changed), or when the new version failed and the
+# previous one was put back (code, database, pictures, settings, version).
+# Holds the maintenance lock throughout and is shielded from console hangups.
+#
+# Order: build the new version next to the live one while the app runs ->
+# stop -> backup (a consistent copy of the stopped database) -> swap the code
+# -> migrate (bootstrap) -> start -> health check within
+# WISHLIST_HEALTH_TIMEOUT (30 s) -> on any failure roll back.
+wl_update() { wl_shielded wl_with_lock _wl_update; }
+
+_wl_update() {
+  local channel current latest backup err=""
+  if [[ ! -f "$WL_VERSION_FILE" || ! -d "$WL_APP_DIR" ]]; then
+    wl_err "No Wish List installation found ($WL_VERSION_FILE, $WL_APP_DIR)."
+    return 1
+  fi
+  current="$(head -n 1 "$WL_VERSION_FILE")"
+  channel="$(wl_settings_get WISHLIST_CHANNEL 2>/dev/null)" || channel=""
+  channel="${channel:-main}"
+  if ! latest="$(wl_latest_ref "$channel")"; then
+    wl_err "Could not check for a new version on GitHub ($(wl_repo), channel $channel); nothing was changed."
+    return 1
+  fi
+  if [[ "$latest" == "$current" ]]; then
+    echo "Wish List is already up to date ($current)."
+    return 0
+  fi
+
+  echo "Updating Wish List from $current to $latest (channel $channel)."
+  echo "Building the new version; the app keeps running meanwhile..."
+  if ! wl_build_ref "$latest" "$WL_APP_DIR"; then
+    wl_err "Update aborted; nothing was changed."
+    return 1
+  fi
+
+  echo "Stopping Wish List and backing up the database, pictures and settings..."
+  if ! systemctl stop "$WL_SERVICE" || ! backup="$(_wl_backup)"; then
+    rm -rf "$WL_APP_DIR.new"
+    _wl_start_unchanged
+    wl_err "Backup failed; update aborted, nothing was changed."
+    return 1
+  fi
+  wl_prune_backups
+  if ! _wl_swap_dirs "$WL_APP_DIR.new" "$WL_APP_DIR"; then
+    _wl_start_unchanged
+    wl_err "Update aborted; nothing was changed."
+    return 1
+  fi
+  printf '%s\n' "$latest" >"$WL_VERSION_FILE"
+
+  echo "Migrating the database and starting the new version..."
+  # Only stderr is kept: stdout could carry a one-time admin link.
+  if err="$(wl_run_as_app "$WL_APP_DIR/.venv/bin/python" -m wishlist.bootstrap 2>&1 >/dev/null)" &&
+    systemctl start "$WL_SERVICE" && wl_health; then
+    _wl_refresh_helpers
+    echo "Updated Wish List to $latest. Backup of the previous version: $backup"
+    return 0
+  fi
+  [[ -n "$err" ]] && wl_err "$err"
+  _wl_rollback "$backup" "$current"
+}
+
+# Start the untouched installation again after an aborted update.
+_wl_start_unchanged() {
+  if ! { systemctl start "$WL_SERVICE" && wl_health >/dev/null 2>&1; }; then
+    wl_err "Warning: Wish List did not come back up; check: journalctl -u $WL_SERVICE"
+  fi
+}
+
+# _wl_rollback BACKUP_DIR PREVIOUS_VERSION: put the previous code dir
+# (WL_APP_DIR.prev) and the backup back, start, health-check. Always returns 1
+# (the update failed either way); says whether the rollback worked.
+_wl_rollback() {
+  local backup="$1" previous="$2" ok=1 log
+  log="$(journalctl -u "$WL_SERVICE" -n 20 --no-pager 2>&1)"
+  wl_err "The new version did not start. Last log lines:"
+  wl_err "$log"
+  wl_err "Rolling back to $previous..."
+  systemctl stop "$WL_SERVICE" || true
+  if [[ -d "$WL_APP_DIR.prev" ]] && rm -rf "$WL_APP_DIR.failed" && mv -T "$WL_APP_DIR" "$WL_APP_DIR.failed"; then
+    if mv -T "$WL_APP_DIR.prev" "$WL_APP_DIR"; then
+      rm -rf "$WL_APP_DIR.failed"
+    else
+      mv -T "$WL_APP_DIR.failed" "$WL_APP_DIR" || true
+      ok=0
+    fi
+  else
+    ok=0
+  fi
+  _wl_restore "$backup" || ok=0
+  if ! { systemctl start "$WL_SERVICE" && wl_health; }; then ok=0; fi
+  if [[ $ok == 1 ]]; then
+    wl_err "Update failed; rolled back to $previous (code, database, pictures and settings). Backup kept in $backup."
+  else
+    wl_err "Update failed and the rollback did not complete. Backup of $previous: $backup. Check: journalctl -u $WL_SERVICE"
+  fi
+  return 1
+}
+
+# After a good update: install the helper scripts shipped with the new
+# version (if it has them), so fixes to the lib and wishlist-settings arrive
+# with updates. The unit file is not replaced.
+_wl_refresh_helpers() {
+  local src="$WL_APP_DIR/proxmox/misc" entry name dest mode tmp
+  for entry in "wishlist-lib.sh:$WL_LIB_FILE:644" "wishlist-settings:$WL_SETTINGS_CMD:755"; do
+    IFS=: read -r name dest mode <<<"$entry"
+    [[ -f "$src/$name" && -d "$(dirname "$dest")" ]] || continue
+    tmp="$(mktemp "$(dirname "$dest")/.$name.XXXXXX")" || continue
+    if cat "$src/$name" >"$tmp" && chmod "$mode" "$tmp" &&
+      { [[ $EUID -ne 0 ]] || chown root:root "$tmp"; } && mv -f "$tmp" "$dest"; then
+      :
+    else
+      rm -f "$tmp"
+      wl_err "Warning: could not refresh $dest."
+    fi
+  done
+}
+
+# wl_write_update_entrypoint [FILE]: write /usr/bin/update in the engine's
+# format (core.func write_update_entrypoint at the pinned commit), so the
+# engine's migrate_update_entrypoint leaves it alone, but with our slug. It
+# runs the engine's misc/update.sh, which asks community-scripts.org about
+# SCRIPT_SLUG (unknown -> update normally; unreachable -> update anyway) and
+# then runs ${COMMUNITY_SCRIPTS_URL}/ct/wishlist.sh; if the helper cannot be
+# fetched it runs our ct script directly. The bases come from the engine's
+# environment (it exports both into the container), else our defaults.
+wl_write_update_entrypoint() {
+  local target="${1:-$WL_UPDATE_ENTRYPOINT}" base core website u tmp
+  local re='^https?://[^[:space:]"$`\]+$'
+  base="${COMMUNITY_SCRIPTS_URL:-$WL_SCRIPTS_URL_DEFAULT}"
+  core="${COMMUNITY_SCRIPTS_CORE_URL:-$WL_CORE_URL_DEFAULT}"
+  website="${COMMUNITY_SCRIPTS_WEBSITE_URL:-https://community-scripts.org}"
+  base="${base%/}" core="${core%/}" website="${website%/}"
+  for u in "$base" "$core" "$website"; do
+    [[ "$u" =~ $re ]] || { wl_err "Not writing $target: unusable URL: $u"; return 1; }
+  done
+  tmp="$(mktemp "$(dirname "$target")/.update.XXXXXX")" || return 1
+  {
+    printf '%s\n' '#!/usr/bin/env bash' \
+      '# Wish List update entrypoint, written by the Wish List install in the' \
+      "# community-scripts engine's format, with Wish List's own script slug." \
+      "export SCRIPT_SLUG=\"$WL_SCRIPT_SLUG\"" \
+      'export UPDATE_SCRIPT_NAME="wishlist"' \
+      "export COMMUNITY_SCRIPTS_URL=\"$base\"" \
+      "export COMMUNITY_SCRIPTS_CORE_URL=\"$core\"" \
+      "export COMMUNITY_SCRIPTS_WEBSITE_URL=\"$website\""
+    # The rest is the engine's text verbatim (single-quoted: no expansion here).
+    # shellcheck disable=SC2016
+    printf '%s\n' \
+      '# Pull the shared helper; it decides whether this app can still be updated. If it' \
+      '# cannot be fetched, fall back to the legacy direct pull so `update` still works.' \
+      '_cs_helper="$(curl -fsSL --connect-timeout 10 "${COMMUNITY_SCRIPTS_CORE_URL}/misc/update.sh" 2>/dev/null)"' \
+      'if [[ -n "$_cs_helper" ]]; then' \
+      '  bash -c "$_cs_helper"' \
+      'else' \
+      '  echo "Update helper unavailable - falling back to direct update."' \
+      '  bash -c "$(curl -fsSL "${COMMUNITY_SCRIPTS_URL}/ct/${UPDATE_SCRIPT_NAME}.sh")"' \
+      'fi'
+  } >"$tmp" && chmod 755 "$tmp" && mv -f "$tmp" "$target" || {
+    rm -f "$tmp"
+    return 1
+  }
 }

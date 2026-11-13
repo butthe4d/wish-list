@@ -6,7 +6,9 @@
 # 1. Starts a plain debian:13 container with this repo mounted read-only at
 #    /repo and runs container-tests.sh in it: the real install script with the
 #    community-scripts engine functions and systemctl stubbed, installing the
-#    app from /repo (WISHLIST_SOURCE_DIR) instead of GitHub.
+#    app from /repo (WISHLIST_SOURCE_DIR) instead of GitHub. Then, in the same
+#    container, test-update.sh exercises the update routine on that install
+#    (and ct/wishlist.sh's update path through the real, pinned engine).
 # 2. Starts a second debian:13 container with real systemd as PID 1 and runs
 #    systemd-tests.sh: systemd's own EnvironmentFile parser must read values
 #    written by wl_settings_set byte-for-byte, and the unit must verify.
@@ -39,6 +41,8 @@ echo "### Install test in $image"
 docker run -d --name "$ct" "${run_opts[@]}" -v "$repo:/repo:ro" "$image" sleep infinity >/dev/null
 docker exec "$ct" bash -c 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates >/dev/null'
 docker exec "$ct" bash /repo/proxmox/tests/container-tests.sh || status=1
+echo "### Update tests in $image (on the installed app, several minutes)"
+docker exec "$ct" bash /repo/proxmox/tests/test-update.sh || status=1
 
 if [[ "${WL_SKIP_SYSTEMD:-0}" == "1" ]]; then
   echo "### SKIPPED: real systemd checks (WL_SKIP_SYSTEMD=1)"
