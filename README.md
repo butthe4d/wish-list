@@ -100,7 +100,9 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/butthe4d/wish-list/main/
 
 The script uses the [community-scripts](https://github.com/community-scripts/core) engine (pinned to a fixed commit) for the usual dialogs and container creation. This script is not part of the official community-scripts collection. It creates a Debian 13 container with 2 vCPU, 1 GB RAM and a 4 GB disk, unprivileged. Choose "Advanced" in the first dialog to change these, the storage, network and so on. The app runs as a systemd service (`wishlist`) on port 8000, with SQLite as the database.
 
-**What it asks.** Near the end of the install: "Configure Wish List now?" (default: no, it waits 60 seconds). If you say yes, it asks for the address people will use (`BASE_URL`), the first admin's name and email, the default language, optionally an SMTP server, optionally gsmservice.pl SMS, and extra `FETCH_DENY_CIDRS`. If you say no, don't answer within 60 seconds, or there is no terminal, it uses defaults: `BASE_URL=http://<container-IP>:8000`, admin `Admin` / `admin@example.com`, language `en`, no email or SMS. You can change everything later. `SECRET_KEY` is always generated.
+**What it asks.** Near the end of the install: "Configure Wish List now?" (default: no, it waits 60 seconds). If you say yes, it asks for the address people will use (`BASE_URL`), the first admin's name and email, the default language, optionally an SMTP server, optionally gsmservice.pl SMS, and extra `FETCH_DENY_CIDRS`. If you say no, don't answer within 60 seconds, or there is no terminal, it uses defaults: `BASE_URL=http://<container-IP>:8000`, admin `Admin` / `admin@example.com`, language `en`, no email or SMS. You can change everything later. `SECRET_KEY` is always generated. Each later question times out after 300 seconds and keeps its default. For scripted installs set `WISHLIST_UNATTENDED=1` to skip all questions and use the defaults.
+
+The default address is plain HTTP. For HTTPS or a reverse proxy, see [Exposing the app](#exposing-the-app), and afterwards update `BASE_URL` with `wishlist-settings` so links in emails and shares are correct.
 
 **Your admin link** is saved in the container in `/root/wishlist.creds` (readable by root only). Read it from the Proxmox host, with the container's ID (`CTID`):
 
@@ -120,7 +122,7 @@ wishlist-settings --set BASE_URL https://wishes.example.com
 read -rs p; printf '%s' "$p" | wishlist-settings --set SMTP_PASSWORD -    # secrets from stdin
 ```
 
-Every setting from [Configuration](#configuration) can be changed at any time, plus `WISHLIST_CHANNEL` (see below). Values are validated, then the app restarts. If it does not start with the new values, the previous settings are put back and the error is shown. Member details, including the admin's own name and email, live on the app's Admin page. `ADMIN_NAME` and `ADMIN_EMAIL` only seed the first admin on first start.
+All settings listed in the menu can be changed at any time, including `WISHLIST_CHANNEL` (see below). `DATABASE_URL` and `DATA_DIR` are managed by the installer; changing them does not move your data. `SECRET_KEY` changes only through "Regenerate SECRET_KEY" in the menu, which logs everyone out and breaks existing share links. Values are validated, then the app restarts. If it does not start with the new values, the previous settings are put back and the error is shown. Member details, including the admin's own name and email, live on the app's Admin page. `ADMIN_NAME` and `ADMIN_EMAIL` only seed the first admin on first start.
 
 ### Updating
 
@@ -139,6 +141,10 @@ Which version you get depends on the channel (`wishlist-settings --set WISHLIST_
 5. checks that `/healthz` answers within 30 seconds. If anything fails (or you interrupt it), it restores the previous code, database, pictures and settings automatically and exits with an error.
 
 Backups are in `/var/lib/wishlist-backups/` (root only); the newest three are kept. If GitHub's API rate limit is hit, the update says so and you try again later. Updates run code from this repository's main branch (or latest release) as root in the container, so only use them if you trust this repository.
+
+### Backups
+
+Back up the whole container with Proxmox's `vzdump` or Proxmox Backup Server. At the least, keep `/var/lib/wishlist` and `/etc/wishlist`. To copy the database of a running app safely, use the SQLite `.backup` approach in [Backup](#backup).
 
 ### Where things are
 
