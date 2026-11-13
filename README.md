@@ -37,7 +37,7 @@ docker run --rm -it -p 8000:8000 \
   wishlist
 ```
 
-The log prints a line like `Admin link: http://localhost:8000/u/…`. Open it in your browser and you're in as the admin. Press Ctrl+C to stop; delete the `try-data` folder to start over.
+After a few seconds the log prints a line like `Admin link: http://localhost:8000/u/…`. Open it in a browser on the same machine and you're in as the admin. (To try it from your phone, set `BASE_URL` to `http://<this-computer's-IP>:8000` instead.) Press Ctrl+C to stop; delete the `try-data` folder to start over.
 
 Then try the main flow from [How it works](#how-it-works): create a list, add a gift from a shop link, open the list's share link in a private browser window and reserve something.
 
@@ -53,15 +53,15 @@ make dev-env   # writes dev.env with a generated SECRET_KEY and this machine's a
 make run       # prints "Admin link: …" on the first run, then serves on port 8000
 ```
 
-Edit `ADMIN_EMAIL` / `ADMIN_NAME` in `dev.env` before the first `make run` if you like. Data lives in `dev.db` and `devdata/` in the repo folder.
+`make dev-env` puts this machine's network address in `BASE_URL`, so the admin link also works from your phone on the same network. Edit `ADMIN_EMAIL` / `ADMIN_NAME` in `dev.env` before the first `make run` if you like. Data lives in `dev.db` and `devdata/` in the repo folder.
 </details>
 
 ## How it works
 
-1. **The admin adds people.** Open your admin link, go to *Admin* and add each household member with a name and email. Each one gets a personal link, emailed if email is set up, otherwise shown on screen once for you to pass on. That link is their login, so they should keep it private.
-2. **Members make lists.** A member creates a list (for example "Christmas 2026"), picks its theme, and adds gifts. For each gift they paste the shop link and tap *Find pictures*: the app suggests pictures and fills in the name and description, asking before it changes anything they already typed.
+1. **The admin adds people.** Open your admin link, go to *Admin*, tap *Add member* and enter a name and email for each household member. Each one gets a personal link, emailed if email is set up, otherwise shown on screen once for you to pass on. That link is their login, so they should keep it private.
+2. **Members make lists and add gifts.** On their home page a member taps *New list*, enters a name (for example "Christmas 2026"), picks a theme and taps *Create list*. Then *Add gift*: paste the shop link and tap *Find pictures* — the app suggests pictures and fills in the name and description, asking before it changes anything already typed — tick the list(s) the gift belongs on, and save.
 3. **Members share a list.** The list page has a share link to copy, plus *Send by email* and *Send by text message* when those are set up. Sharing works with anyone, member or not.
-4. **Guests reserve gifts.** The share link opens a grid of gifts. Tapping one shows the details and a *Who's buying this?* field. Once reserved, everyone else sees the gift as reserved. The list owner sees nothing, not even on their own page.
+4. **Guests reserve gifts.** The share link opens a grid of gifts. Tapping one shows the details, a *Who's buying this?* field and an *I'll get it* button. Once reserved, everyone else sees the gift as reserved. The list owner sees nothing, not even on their own page.
 5. **The admin keeps an eye on things.** If an owner deletes a gift someone already reserved, the admin page marks that member with *Needs attention*. Clicking *Show reservations* on that member's page reveals the details, for that member and that page view only. If someone loses their link, *Change key and send new link* gives them a new one.
 
 Opening your own list's share link while logged out (or in another browser) shows you what guests see, including reservations, so don't do that if you want to stay surprised.
