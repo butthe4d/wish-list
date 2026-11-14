@@ -82,5 +82,5 @@ user's.
 ## Left to the builder
 
 Exact prompt wording (English), whiptail layouts, backup retention (keep last
-3), how the update compares versions, container defaults (2 vCPU, 1024 MB RAM,
-4 GB disk, unprivileged).
+3), how the update compares versions, container defaults (1 vCPU, 512 MB RAM,
+3 GB disk, unprivileged; reduced from 2 vCPU / 1 GB / 4 GB on 2026-11-14 after measuring ~260 MB RSS).
