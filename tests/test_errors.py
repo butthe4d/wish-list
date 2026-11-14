@@ -20,7 +20,7 @@ def test_server_error_page_uses_app_layout(failing_app):
     assert r.status_code == 500
     assert "Something went wrong. Please try again." in r.text
     assert 'class="page"' in r.text and "design-a.css" in r.text
-    assert r.headers["Referrer-Policy"] == "no-referrer"
+    assert r.headers["Referrer-Policy"] == "same-origin"
 
 
 def test_server_error_page_in_polish(failing_app):

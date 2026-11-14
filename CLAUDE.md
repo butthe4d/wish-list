@@ -31,7 +31,7 @@ Self-hosted Flask household wishlist app (Apache-2.0). Python 3.12+, SQLAlchemy 
 
 - A list owner never sees reservation state of their own items, in any member or share view. In admin, every member's reservations (and orphan warnings) appear only on that member's page loaded with `?reveal=1` from the "Show reservations" button; the admin home page shows only a neutral "Needs attention" marker (never for the viewer's own items), and orphan emails name only the member.
 - External links are built from `BASE_URL`, never the request host.
-- `Referrer-Policy: no-referrer` on all responses; store links use `rel="noopener noreferrer" target="_blank"`.
+- `Referrer-Policy: same-origin` on all responses (never `no-referrer`: Flask-WTF's HTTPS CSRF check needs a same-origin Referer, or every form fails behind a tunnel); store links use `rel="noopener noreferrer" target="_blank"`, so nothing reaches other sites.
 - Keys never reach logs (gunicorn logger redacts `/u/<key>`, `/s/<key>`).
 - Every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`.
 - Pictures: never hotlinked (guests' browsers load only app-served files); stored as re-encoded JPEG with random names; served only for live items (deleted items and orphan files 404); on hard deletes (item, member) files are removed after the DB commit; an item with a reservation is only soft-deleted, so its file stays (unserved) until the reservation is cancelled or the member is deleted; temp candidates are removed by `cleanup_temp` on the next picture search once older than 1 h (no timer).

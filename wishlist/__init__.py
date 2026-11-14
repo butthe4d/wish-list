@@ -38,13 +38,16 @@ def create_app(config: Config | None = None, *, mailer=None, sms=None) -> Flask:
 
     @app.after_request
     def security_headers(response):
-        response.headers["Referrer-Policy"] = "no-referrer"
+        # same-origin: browsers send the Referer only to this app (Flask-WTF's
+        # HTTPS CSRF check requires it) and never to shops or other sites.
+        response.headers["Referrer-Policy"] = "same-origin"
         return response
 
     @app.errorhandler(CSRFError)
     def csrf_failed(error):
         from .i18n import safe_next
 
+        app.logger.warning("CSRF check failed on %s %s: %s", request.method, request.path, error.description)
         flash(_("This page expired, please try again."))
         target = request.referrer or ""
         parts = urlsplit(target)
